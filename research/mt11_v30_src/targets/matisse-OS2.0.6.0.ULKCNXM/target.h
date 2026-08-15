@@ -144,7 +144,7 @@
 #define MM_OWNER_OFF 1032
 
 /* ── cred / SELinux offsets ── */
-#define CRED_UID_OFF 0x8
+#define CRED_UID_OFF 0x14   /* 2026-08-15 fix: commit_creds disasm uid@+0x14 (was 0x8) */
 #define CRED_SECUREBITS_OFF 0x28
 #define CRED_CAPS_OFF 0x30
 #define CRED_SECURITY_OFF 0x80

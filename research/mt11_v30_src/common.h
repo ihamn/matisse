@@ -478,3 +478,4 @@ int slide_v37_trigger(void);
 void slide_reset_trigger_state(void);
 uint64_t slide_read_boot_id(void);
 uintptr_t perf_find_task(void);
+extern uintptr_t g_perf_cred_cand;  /* mt40 */

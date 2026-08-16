@@ -77,17 +77,31 @@ win 后**不再发 UNLOCK_PI**（默认改，`PSELECT_UNLOCK_AFTER_WIN=1` 恢复
 6. 任何 panic: pstore 第一时间拉原文推仓库
 ```
 
-## 五、修复轮 env（预告，跑前我会再推一份最终版）
+## 五、修复轮 env（最终版已定，见 INDEP_AUDIT §四）
 
-`PSELECT_PTR_MODE=1 PTR_STAGE=R RETRY=1 + TREE_RIGHT=<spray+0x3800>` ——
-但 right 现在在 PTR 分支里写死 init_cred 别名（main.c:820），需要
-mt53 同批加 `PSELECT_PTR_RIGHT` env 覆盖口。**明早猎赢结果出来后我
-30 分钟内推最终修复配方**，避免今晚连夜改太多引入新变量。
+~~`TREE_RIGHT=<spray+0x3800>`~~ → **mt54 已交付**：`PSELECT_PTR_RIGHT`
+覆盖钩子（GEOM_KEEP 救不了 PTR 轮：pc 必须来自运行时 perf 泄露）。
+另新增 `PSELECT_WAIT_SECONDS`，见下方勘误。终版组合以
+INDEP_AUDIT_2026-08-16.md §四为准，落地前必核对 RUNLOG 的
+`[PTR_RIGHT override]` 标记。
+
+## 五b、勘误（mt54）：spec2 漏了第四类杀伤入口
+
+原文"只有三类 post-win 入口能杀我们"不完整——**waiter 的 30s
+WAIT_REQUEUE_PI 超时**是 win 前就上膛的内核侧定时器：到期
+remove_waiter → 对毒树 double-erase + prio_chain walk。mt26 胜局那轮
+活过它属 n=1 运气。mt53 的静默纪律管不到内核定时器。
+**修法（mt54）**：修复轮 `PSELECT_WAIT_SECONDS=120` > sleep 70s，
+让清理只走进程退出路径（futex_exit_release，0 断言）。纯 ENF 猎赢轮
+不必加（miss 轮无毒树；win 轮维持 mt26 同款行为以便网格可比）。
 
 ## 六、仍欠的账
 
 - mt26 round4 的 `mt25: futex trigger` 行原文（赢签名档案化 — 你们 grep
-  了 summary 没贴行；明天第一件事）
+  了 summary 没贴行；明天第一件事。注：仓库 logs_raw/mt26_selinux.txt
+  是摘要，无 futex 行——若设备 RUNLOG 已覆盖请明说）
 - 两次 PTR 崩溃 pstore 若有第三份残留，推原文（v2 的 owner-NULL 检验）
+- （mt54 勘误新增）今晚一份 RUNLOG 尾 3 行 + 13:15 四轮 rc 值 +
+  旧 .so 清单 —— 见 INDEP_AUDIT §五
 
-—— 外部评审（spec2 交付，今晚闭账）
+—— 外部评审（spec2 交付，今晚闭账；mt54 勘误深夜补）

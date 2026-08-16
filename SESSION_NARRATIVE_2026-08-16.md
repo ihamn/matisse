@@ -40,6 +40,55 @@
 是 7 月两条死路（v/R）撞了无数遍后的最终归因。
 同样，"写原语成立"（mt22）是在 7 月"写不落地"的所有教训之上才达成的。
 
+## 0.6 8 月接手：从坟墓到 mt 系列（8-14 白天）
+
+### 恢复与准备（8-14 白天）
+- 7-18 搁置后，8-14 恢复: rish/Shizuku 重新打通（无线调试依赖 WiFi，切网会掉）
+- 克隆资料（gh-proxy 镜像）: popsicle/duchamp/aristotle 等参考项目
+- **版本命名切换**: v/R 系列废弃 → mt 系列（用户要求）
+- 构建适配: 用 Linuxoid-cn generate_target.py 生成 matisse target
+
+### mt 系列早期试错（mt1-mt4）
+- **v1 测试**: 手机重启（预期失败模式）
+- **mt2**: 无崩溃但 slide 泄露失败
+- **mt3/mt4**: slide 路线（13-word 布局）崩 3 次 → 弃 slide，转 fops route
+  - 教训: 13-word 是 6.x 布局，5.10 是 10-word（反汇编确认 rt_mutex_init_waiter）
+  - GC sleep 缓解（免重启延长测试预算）
+
+### 泄露机制解密 + 转向（mt5-mt8）
+- **mt5**: 对照 popsicle/duchamp 原版 + 内核数据 → 替换 slide 泄露（oracle 失败）
+- **mt6**: 13-word fops → 崩。证据链: 两个字段都要对
+- **mt7**: 10-word 表 + lock=SLIDE_RANDOM_BOOT_ID_DATA
+- **mt8**: 写原语验金石（OFF|RED 强触发）→ 不崩但 boot_id pristine
+  - 剩余最大嫌疑: overlay 对齐 (shift)
+
+### shift 扫描与 rb_set_parent 限制（mt9-mt10）
+- **mt9**: fops route 扫 shift 1-8 → shift=2 触发但写不落地
+- **rb_set_parent 根本限制**（电脑端追踪确认）: shape=1 写会把 value+0 也破坏，只能安全写 0
+- **mt10**: selinux-zero（写 enforcing 为 0）
+
+### v30 技术提升型（mt11-mt13）
+- **mt11**: v30 原版还原（SHA256=7d16b26d 基准）
+- **mt12**: v30 技术提升型（fops.c 改动）→ 系统无响应需重启
+- **mt13**: + PSELECT_ONE_SHOT=1
+
+### 免重启清 slab + mt14-mt16（8-14 晚）
+- 内存压力触发 shrinker+compaction（免 root）: 有效但不够；am kill-all 才恢复喷页 cache
+- **mt14**: boot_id 验证目标（触发时 calls=1 但 boot_id 未变）
+- **mt15**: v30 + shift 扫描 + boot_id 验证 → 卡死在 FOPS 阶段前
+- **mt16**: + PSELECT_SKIP_WARMUP=1 → shift 0-7 全扫，**全部 bootid_changed=0**
+  - 当时定论: "matisse 上 rb_erase 写入从未落地"（后被 8-14 深夜推翻）
+- **mt17**: 已构建未运行（fresh-eyes 判定 shift 8-15 结构性无效）
+
+### 关键转折（8-14 深夜，接"第一部分"）
+- mt18 oracle → FOPS 无 UAF 破案 → mt19-22 → 写原语成立（详见第一部分）
+
+### 这段的意义
+外部评审需要理解: mt1-17 的"全部失败"是**在 FOPS 路线上**（结构性无 UAF，必然失败），
+不是能力问题。8-14 深夜的破案（转向 SLIDE 路线）才是真正的转折点。
+同时 7 月 + 8-14 白天的所有教训（10-word 表、rb_set_parent 限制、am kill-all、ks 顺序）
+沉淀成了 mt22 之后能成功的地基。
+
 ## 第一部分：接手前（8-14 深夜 → 8-15 早晨，对面会话）
 
 ### 1.1 8-14 21:0x-21:45 — 写原语"端到端不成立"的误判期

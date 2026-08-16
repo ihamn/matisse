@@ -371,6 +371,8 @@ int try_put_blob_zero_at(int fd, const unsigned char *blob, size_t pos);
 int try_set_ashmem_name_blob(int fd, const unsigned char *blob, size_t len);
 pid_t clone_child(void);
 pid_t clone_leak_child(void);
+int leak_memfd_recv(void); /* mt47-c: SCM_RIGHTS self-open pin, -1=fallback */
+extern int g_leak_sock;
 int open_memfd(pid_t child);
 void kill_child(pid_t child);
 void close_reclaim_sockets(void);

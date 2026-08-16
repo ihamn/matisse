@@ -1,0 +1,2 @@
+BUILD_ENV: NDK r29 linux, API 35, PROJECT=matisse-OS2.0.6.0.ULKCNXM, sources=mt11_v30_src HEAD + mt59 (4 hunks in slide.c: chain-armed handshake, 20ms fire delay, EAGAIN requeue retry x5, 12s route_done watchdog rc=3). mt53/54/55/56/57 markers verified in binary. su_daemon unchanged from mt58 (copied).
+SHA256 preload.so: 1064e413aa9eb5113ccb50ac9e160aeae9c160cbe9f145f90ca0f0b5ae2bd45f

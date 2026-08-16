@@ -29,6 +29,32 @@ freq1=$(cat /sys/devices/system/cpu/cpu1/cpufreq/scaling_cur_freq 2>/dev/null) \
 thermal=$(cat /sys/class/thermal/thermal_zone0/temp 2>/dev/null)" >> $LOG
 }
 
+# freqgate: joyose clamp 检测 (THERMAL_RESPONSE). 盯 scaling_max_freq 而非 cur:
+#   clamp = max 被压低 (负载也上不去); 空载 cur 低是正常调频无害.
+#   clamp → 自动 force-stop joyose → 复查 → 仍 clamp 则跳过本轮 (返回 1)
+FREQ_MIN=1500000
+isnum() { case "$1" in ''|*[!0-9]*) return 1;; esac; return 0; }
+readmax() { cat /sys/devices/system/cpu/$1/cpufreq/scaling_max_freq 2>/dev/null; }
+freqgate() {
+  m0=$(readmax cpu0); m1=$(readmax cpu1)
+  if ! { isnum "$m0" && isnum "$m1"; }; then
+    echo "freqgate: max_freq unreadable (m0=$m0 m1=$m1) - proceed unguarded" >> $LOG
+    return 0
+  fi
+  if [ "$m0" -lt "$FREQ_MIN" ] || [ "$m1" -lt "$FREQ_MIN" ]; then
+    echo "freqgate: CLAMP m0=$m0 m1=$m1 -> force-stop com.xiaomi.joyose" >> $LOG
+    am force-stop com.xiaomi.joyose 2>/dev/null
+    sleep 2
+    m0=$(readmax cpu0); m1=$(readmax cpu1)
+    if [ "$m0" -lt "$FREQ_MIN" ] || [ "$m1" -lt "$FREQ_MIN" ]; then
+      echo "freqgate: STILL clamped m0=$m0 m1=$m1 - SKIP this round" >> $LOG
+      return 1
+    fi
+    echo "freqgate: recovered m0=$m0 m1=$m1" >> $LOG
+  fi
+  return 0
+}
+
 # ---------- R0: 判活 (3 轮) — SKIP_R0=1 可跳过 (模式C策略) ----------
 # R0✅ 按设计=崩一台(牺牲boot+脚本中断)。判活连灭日: STAGE-R 落地自带无崩
 # 判活(状态文件 CapEff)且是实质进展 → SKIP_R0=1 直接跑后续; R0 降级为
@@ -39,6 +65,7 @@ if [ "$SKIP_R0" = "1" ]; then
 else
 for R0N in 1 2 3; do
   logenv
+  freqgate || continue
   rm -f $RUNLOG
   timeout 120 env \
     PSELECT_SLIDE_TRIGGER=1 \
@@ -54,11 +81,17 @@ done
 [ $R0OK -eq 1 ] || { echo "!! R0 3轮全灭 — 原语未激活, 换 boot (或 SKIP_R0=1 让 STAGE-R 自证)" >> $LOG; exit 1; }
 fi
 
-# ---------- ENF: 翻 Permissive (best-effort, 失败不阻断) ----------
+# ---------- ENF: 翻 Permissive — 默认撤编 (THERMAL_RESPONSE §三, ENF_ENABLE=1 回滚) ----------
+# 撤编理由: (a) 15:30 ENF round2 在 clamp 下崩了 (今天唯一 ENF 崩, 历史 16 次实验
+# ENF 从未崩); (b) 纯冗余 — sel_write_enforce 只查 cred->security 的 SID
+# (MT47_ROUTE_DECISION 自证), STAGE-C 后主观 cred=init_cred → SID=kernel_t →
+# 子进程 main.c:896 的 setenforce 直接合法. ENF_ENABLE=1 恢复旧流程.
+if [ "$ENF_ENABLE" = "1" ]; then
 for E in 1 2 3; do
   EF=$(getenforce 2>/dev/null)
   case "$EF" in *ermissive*) break;; esac
   logenv
+  freqgate || continue
   rm -f $RUNLOG
   timeout 120 env \
     PSELECT_SLIDE_TRIGGER=1 \
@@ -70,6 +103,9 @@ for E in 1 2 3; do
   sleep 3
 done
 echo "ENF final=$(getenforce)" >> $LOG
+else
+  echo "ENF skipped (default): post-root setenforce via kernel SID (main.c mt28g); ENF_ENABLE=1 to restore" >> $LOG
+fi
 
 KOARG=""
 [ -f $KO ] && KOARG="PSELECT_KO=$KO" && echo "ko found: $KO" >> $LOG
@@ -79,6 +115,7 @@ KOARG=""
 # 单发命中 ~20-40% → 4 轮累计 59-87%; 每轮独立进程, 不破一进程一写
 for RA in 1 2 3 4; do
   logenv
+  freqgate || continue
   rm -f $RUNLOG
   TASKARG=""
   [ $RA -gt 1 ] && TASKARG="PSELECT_TASK=$(getfield task)"
@@ -118,6 +155,7 @@ TASK=$(getfield task)
 echo "STAGE-C task=$TASK" >> $LOG
 for CA in 1 2 3 4; do
   logenv
+  freqgate || continue
   rm -f $RUNLOG
   timeout 120 env \
     PSELECT_SLIDE_TRIGGER=1 \

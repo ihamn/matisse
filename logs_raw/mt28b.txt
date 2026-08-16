@@ -1,0 +1,8 @@
+boot_before=5db8a48f-0e8f-412e-859e-42203c87d1fc
+--- round 1 start 09:56:23
+round=1 rc=124
+round=1 boot_id=c8778a02-80ff-ffff-488f-221fd0ffffff
+--- round 2 start 09:58:23
+round=1 rc=124
+round=1 boot_id=c8778a02-80ff-ffff-488f-221fd0ffffff
+--- round 2 start 10:00:06

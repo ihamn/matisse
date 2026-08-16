@@ -1,0 +1,17 @@
+boot_before=00778a02-80ff-ffff-303c-e23ec0ffffff
+enforce_before=Enforcing
+--- round 1 start 08:29:22
+round=1 rc=124
+round=1 enforce=Enforcing
+--- round 2 start 08:33:05
+round=2 rc=124
+round=2 enforce=Enforcing
+--- round 3 start 08:36:48
+round=3 rc=124
+round=3 enforce=Enforcing
+--- round 4 start 08:40:31
+round=4 rc=124
+round=4 enforce=Permissive
+★★★ SELINUX PERMISSIVE round=4 ★★★
+=== enforce_after=Permissive
+=== DONE ===

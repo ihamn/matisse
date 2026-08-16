@@ -1,0 +1,12 @@
+boot_before=97ae8367-1195-41df-81ee-247401b06d5f
+--- round 1 start 08:26:03
+round=2 rc=124
+round=2 boot_id=00778a02-80ff-ffff-303c-e23ec0ffffff
+★★★ WRITE CONFIRMED round=2 ★★★
+=== boot_after=00778a02-80ff-ffff-303c-e23ec0ffffff
+=== DONE ===
+round=1 rc=124
+round=1 boot_id=00778a02-80ff-ffff-303c-e23ec0ffffff
+★★★ WRITE CONFIRMED round=1 ★★★
+=== boot_after=00778a02-80ff-ffff-303c-e23ec0ffffff
+=== DONE ===

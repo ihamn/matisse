@@ -85,6 +85,13 @@ while [ ! -f /data/local/tmp/root_alive.txt ] && [ ! -f /data/local/tmp/ksu_done
     LD_PRELOAD=$DST /system/bin/sleep 70 > $RUNLOG 2>&1
   echo "PTR round=$P rc=$?" >> $LOG
   grep -a 'mt47:\|mt39:\|mt40:\|futex trigger\|SLIDE page' $RUNLOG | sed 's/\x1b\[[0-9;]*m//g' >> $LOG
+  # mt47b: PTR 后立即抓 pstore (若设备未崩, 无害; 若上轮崩过重启, 这里能拿到上一 boot 的 panic 栈)
+  for PS in /sys/fs/pstore/console-ramoops-0 /sys/fs/pstore/dmesg-ramoops-0; do
+    if [ -f $PS ]; then
+      echo "--- pstore: $PS (last 60 lines) ---" >> $LOG
+      tail -60 $PS >> $LOG 2>/dev/null
+    fi
+  done
   [ -f /data/local/tmp/root_alive.txt ] && echo "★★★ PTR round=$P ROOT-ALIVE: $(cat /data/local/tmp/root_alive.txt) ★★★" >> $LOG
   [ -f /data/local/tmp/ksu_done.txt ] && echo "★★★★ PTR round=$P KSU-LOADED ★★★★" >> $LOG
   sleep 3

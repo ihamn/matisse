@@ -363,7 +363,52 @@ pid_t clone_leak_child(void) {
 int open_memfd(pid_t child) {
   char path[64];
   snprintf(path, sizeof(path), "/proc/%d/mem", child);
-  return SYSCHK(open(path, O_RDONLY));
+  int fd = open(path, O_RDONLY);
+  /* mt47-diag: SYSCHK 只打 %m 丢细节, 且不知道哪个 pid 挂了。
+   * 失败时抓 4 个证据: errno / 子进程域 / 父进程域 / 子进程是否已死。
+   * 只打印不改变任何控制流 — 不碰时序。 */
+  if (fd < 0) {
+    int e = errno;
+    char dom[128];
+    int dfd;
+    dom[0] = 0;
+    snprintf(path, sizeof(path), "/proc/%d/attr/current", child);
+    dfd = open(path, O_RDONLY);
+    if (dfd >= 0) {
+      read(dfd, dom, sizeof(dom) - 1);
+      close(dfd);
+    } else {
+      snprintf(dom, sizeof(dom), "(read fail errno=%d)", errno);
+    }
+    char mydom[128];
+    mydom[0] = 0;
+    dfd = open("/proc/self/attr/current", O_RDONLY);
+    if (dfd >= 0) {
+      read(dfd, mydom, sizeof(mydom) - 1);
+      close(dfd);
+    }
+    int st = 0;
+    snprintf(path, sizeof(path), "/proc/%d/stat", child);
+    dfd = open(path, O_RDONLY);
+    if (dfd >= 0) {
+      char sb[256];
+      ssize_t r = read(dfd, sb, sizeof(sb) - 1);
+      close(dfd);
+      if (r > 0) {
+        sb[r] = 0;
+        char *rp = strrchr(sb, ')');
+        if (rp && rp[1] == ' ') st = rp[2];
+      }
+    } else {
+      st = '?';
+    }
+    pr_error("mt47-diag: open_memfd pid=%d FAIL errno=%d state=%c\n"
+             "mt47-diag:   child_dom=%s\n"
+             "mt47-diag:   parent_dom=%s\n",
+             child, e, st, dom, mydom);
+    errno = e;
+  }
+  return fd;
 }
 
 void kill_child(pid_t child) {

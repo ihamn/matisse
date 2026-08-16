@@ -18,7 +18,7 @@ rm -f /data/local/tmp/root_alive.txt /data/local/tmp/ksu_done.txt $STATUS
 echo "boot_before=$BID0" > $LOG
 am kill-all 2>&1 | tail -1 >> $LOG
 
-getfield() { awk -F= -v k="$1" '$1==k{print $2}' $STATUS 2>/dev/null; }
+getfield() { grep -o "$1=[0-9a-f]*" $STATUS 2>/dev/null | cut -d= -f2 | head -1; }
 
 # ---------- R0: 判活 (3 轮) ----------
 R0OK=0

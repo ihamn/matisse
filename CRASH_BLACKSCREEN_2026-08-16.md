@@ -27,3 +27,27 @@
 4. bootreason 长按 = 是系统完全冻结还是只是黑屏?（用户无法区分）
 
 —— matisse 现场
+# 补充证据：黑屏卡死 ≠ panic → dsh 未被污染 (2026-08-16)
+
+> 追加到 CRASH_BLACKSCREEN。用户敏锐观察：这次黑屏重启后 dsh web 正常。
+
+## 事实
+1. 之前 3 次崩溃（crash#1/#2/#3, 内核 BUG/panic）→ 每次 dsh web 都起不来
+   (session_projcache.json 污染, 需隔离 storages)
+2. **这次黑屏卡死（长按重启, 非 panic）→ dsh web 完全正常** (HTTP 200,
+   session_projcache.json 正常 3648B)
+
+## 独立证据价值
+- **支持对面 ASK2 归因修正**: dsh 污染 = panic 未清盘导致的 FS 元数据损伤
+  （写原语不碰用户文件）
+- 这次非 panic → 文件系统干净 → dsh 无污染 → **归因链再加一环**
+- 也说明: 黑屏卡死没有走到内核 panic 那一步（系统冻结但内核未崩）,
+  与 pstore 无栈 + bootreason=longkey 三方吻合
+
+## 推论
+- "卡死"与"panic"是**两种不同的事故模式**:
+  a. panic (crash#1/2/3): 内核 BUG → 重启 → dsh 污染
+  b. 卡死 (本次): 系统冻结 → 长按 → dsh 干净
+- 我们过去一直把"崩溃"当一种现象, 实际有两种, 处置不同
+
+—— matisse 现场

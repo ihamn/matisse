@@ -19,8 +19,13 @@
 ## 一、起飞前（一次性，约 15 分钟）
 
 ```sh
-# 1. 拉最新代码 + 重编（含 mt56+mt57）
-git pull && <现场既有编译流程> && sha256sum <产物>
+# 1. ★编译已由评审完成（mt58 产物，零往返）★ 直接取用：
+#    repo bin/mt58/preload.so
+#    SHA256 b6d4cf913478d4209363ae723993b4605d31a534ed73024b8272833f6a8e3621
+#    (NDK r29 / API35 / PROJECT=matisse-OS2.0.6.0.ULKCNXM / 源=HEAD 6588b17
+#     mt53+54+55+56+57 全部在内; 详见 bin/mt58/BUILD_INFO.txt)
+#    设备侧: cp bin/mt58/preload.so /data/local/tmp/preload.so
+#    然后核对: sha256sum /data/local/tmp/preload.so == b6d4cf91...
 # 2. 冷启动（或保持当前 boot 沉降 ≥10min）
 # 3. 环境记录
 date; cat /proc/sys/kernel/random/boot_id; getenforce

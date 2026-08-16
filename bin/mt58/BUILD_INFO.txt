@@ -1,0 +1,1 @@
+BUILD_ENV: NDK r29 linux, API 35, PROJECT=matisse-OS2.0.6.0.ULKCNXM, sources=HEAD 6588b17 (mt53/54/55/56/57 all in)

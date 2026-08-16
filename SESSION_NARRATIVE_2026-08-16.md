@@ -7,6 +7,39 @@
 
 ---
 
+## 第零部分：7 月坟墓（v 系列 + R 系列，两条死路）
+
+### 0.1 路线 1 — v 系列 (v1-v36): deep PI chain + pselect GhostLock → FOPS 覆写
+- 机制: deep PI chain（block_holder→owner→waiter 三层），waiter 阻塞在 FUTEX_LOCK_PI，
+  pselect_thread 在 waiter 阻塞期间跑 GhostLock 竞态 → rb_erase 写
+- 结论: 死路。rb_erase 的 csel 检查 parent->rb_left==node 永远失败 → 永远写 parent+8 (name_ptr)，
+  永远碰不到 parent+0x10 (fops)。v30 最强触发 ret=193 也只是写 name_ptr
+- 留存资产: deep chain 稳定架构 + shape=1 框架 + 10-word 表 + canon_addr 修复
+
+### 0.2 路线 2 — R 系列 (R1-R11): GhostLock shape=1 直写 cred
+- 思路: 放弃 FOPS，用 shape=1 直接写 current->cred = init_cred
+- 需要先 shape=0 读原语泄露 per-CPU delta
+- 结论: 关闭。shape=0 读原语写 per-CPU offset 表 → 立即 kernel panic；
+  R8_test4 首次 bruteforce 成功但 fake_task 导致 pselect 期间 panic
+- 教训: 永远不要写 per-CPU 区域、永远不要用假 task（要用 init_task）
+
+### 0.3 路线 3 — trigger_stamp (v37/v38): EDEADLK UAF + 栈喷
+- 原始 trigger.c 的 EDEADLK + stack UAF 路线（不依赖 pselect）
+- v37/v38: NULL task 验证证明 stamp 落点正确（崩 = 读到了）
+- 这是后来 8-14 真触发路线的种子（v37 EDEADLK 拓扑）
+
+### 0.4 7 月教训（接手时带的包袱）
+- MTK slab 脆弱: 每重启最多 2 次测试，第 3 次大概率崩
+- Termux 弹退: 源码禁止 /tmp、测试前后留档
+- deploy.sh 哈希铁律: Shizuku cp 曾写全零文件
+- 偏移必须反汇编验证: 0x820（错）vs 0x780（对）的教训源头
+- 7-18 项目搁置（当时判定 FOPS 死路 + R 关闭，无路可走）
+
+### 0.5 为什么这段重要
+外部评审需要理解: 8-14 的"破案"（FOPS 结构性无 UAF）不是凭空来的，
+是 7 月两条死路（v/R）撞了无数遍后的最终归因。
+同样，"写原语成立"（mt22）是在 7 月"写不落地"的所有教训之上才达成的。
+
 ## 第一部分：接手前（8-14 深夜 → 8-15 早晨，对面会话）
 
 ### 1.1 8-14 21:0x-21:45 — 写原语"端到端不成立"的误判期

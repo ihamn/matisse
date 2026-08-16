@@ -1,4 +1,13 @@
 #!/system/bin/sh
+# ⚠️ 已退役 2026-08-16 — 禁止直接运行 (防误跑闸门见下)
+#   事故记录: 本文件在 mt48 轮被就地改成 PTR_ALT 模式但 SRC 未随版本升级,
+#   曾以 mt47 的 .so 配 mt48 的 env 跑出错配实验 (现场提醒, 已核实)。
+#   mt48 (进程内 ALT) 已被 crash#2 判死 (同进程二触中毒树), 当前主脚本:
+#     test_mt49_root.sh  (一进程一写: STAGE-R/STAGE-C 独立进程 + 状态文件衔接)
+#   本文件仅作 mt47→mt48 演化历史档案。
+echo "!! RETIRED: 本脚本已退役 (mt48 ALT 模式 + SRC 错配隐患), 请用 test_mt49_root.sh" >&2
+exit 1
+
 # mt47 终局三步: R0 判活 → ENF 全局 Permissive → PTR cred指针→init_cred(满caps)
 #
 # 顺序原理 (ELF 实证, 见 MT47_ROUTE_DECISION_2026-08-16.md):

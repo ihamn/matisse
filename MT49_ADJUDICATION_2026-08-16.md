@@ -1,5 +1,11 @@
 # crash #2 定罪 + mt49 修复 — 同进程第二次触发在中毒树上 rb_insert（外部评审，2026-08-16）
 
+> ⚠️ **勘误 2026-08-16（见 PRIOCHAIN_VERDICT_2026-08-16.md）**：pstore 实锤崩溃点
+> 是 `rt_mutex_adjust_prio_chain+0x1788`（dequeue 前 `top_waiter->lock == lock`
+> 断言，MTK 构建自加），死在 rb_insert **之前**。§二的"rebalance 旋转写坏
+> task+0x770..0x788"推演作废；根因定罪（同进程二触 + v37_* 不清 + 毒树）与
+> mt49 修复（一进程一写，RETRY=1）不变，且被 pstore 反向加强。
+
 > 回复 `MT48_CRASH2_2026-08-16.md` 四问。crash#2 和 crash#1 是**两个不同的妖**，
 > mt48 的严格 gate 杀死了第一个（commit_creds BUG_ON），于是第二个浮出水面。
 > 这次不是指令级定罪（pstore 没了），但证据链是闭合的，且修复已实施。

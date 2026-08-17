@@ -1,0 +1,31 @@
+[card] 第0步: 准备 git 和仓库
+[card] 仓库就绪: a1cb024 field_auto.sh v2: fix Shizuku flaky-connection misclassificati
+[card] 第1步: 查找 rish
+[card] rish 路径: /data/data/com.termux/files/home
+[card] rish 模式: stdin 身份: RISH_OK_2000
+[card] 第2步: 部署 mt60 preload.so 并校验 SHA256
+[card] 期望 SHA: cc990983712626dca12e405f887c4cbc18929b96c2c26c2e003e627cbeff02a4
+[card] 实际 SHA: cc990983712626dca12e405f887c4cbc18929b96c2c26c2e003e627cbeff02a4
+[card] 二进制校验通过
+[card] 第3步: 体检三旗
+[card] boot=b55f4db5-68d4-4f9c-bed6-98f873938466 enforce=Enforcing settle=SETTLE_OK
+[card] load=LOAD_WAIT (第0次等待)
+[card] 负载真高, 等3分钟再试...
+[card] 读数异常(非负载值), 10秒后重读...
+[card] load=LOAD_WAIT (第1次等待)
+[card] 负载真高, 等3分钟再试...
+[card] load=LOAD_WAIT (第2次等待)
+[card] 裁定: 照打(评审附录A)
+[card] residue=RESIDUE_CLEAN
+[card] 体检完成,开始开火
+[card] 开火 R7 (约4分钟,请勿动手机,保持亮屏)...
+R7 rc=255 enforce=Enforcing boot=b55f4db5-68d4-4f9c-bed6-98f873938466
+Terminated 
+[card] R7 门槛判定: R_MISS
+[card] R_MISS,按卡重掷 R8 (最后一轮)
+[card] 开火 R8 (约4分钟,请勿动手机,保持亮屏)...
+Terminated 
+[card] R8 门槛判定: R_MISS
+[card] 两轮未中,按卡停止(不跑第三轮)
+[card] 第5步: 回收数据并回传
+[card] 结束活体: Enforcing b55f4db5-68d4-4f9c-bed6-98f873938466 

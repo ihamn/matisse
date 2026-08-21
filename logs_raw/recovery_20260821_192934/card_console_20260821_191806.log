@@ -1,0 +1,8 @@
+[card] 第0步: 准备 git 和仓库
+[card] 仓库就绪: f76318a R9 ADJUDICATION + mt61 BUILT + field_auto.sh v4 (card 6). R9 V
+[card] 第1步: 查找 rish
+[card] rish 模式: stdin 身份: RISH_OK_2000
+[card] 第2步: 部署 mt61 preload.so 并校验 SHA256
+[card] 期望 SHA: 12c937a0790f604ed084aa8c155cc5f7cc05767c7c00bd5ae6d97ad23f8c218f
+[card] 实际 SHA: 19e8f6369ec22a262aeb92d955e5f41636c8776bda1aa8ac81588661c1ad201d
+[card] !! SHA 不一致,中止开火(防错二进制)

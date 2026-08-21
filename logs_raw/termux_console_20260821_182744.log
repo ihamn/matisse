@@ -1,0 +1,30 @@
+[card] 第0步: 准备 git 和仓库
+[card] 仓库就绪: 9b51fec R7 ADJUDICATION + field_auto.sh v3 (card 5). CANARY THEORY CON
+[card] 第1步: 查找 rish
+[card] rish 模式: stdin 身份: RISH_OK_2000
+[card] 第2步: 部署 mt60 preload.so 并校验 SHA256
+[card] 期望 SHA: cc990983712626dca12e405f887c4cbc18929b96c2c26c2e003e627cbeff02a4
+[card] 实际 SHA: cc990983712626dca12e405f887c4cbc18929b96c2c26c2e003e627cbeff02a4
+[card] 二进制校验通过
+[card] 第3步: 取证 (残留进程 + 每线程 state/wchan + 负载)
+[card] 取证落盘: /data/data/com.termux/files/home/matisse/logs_raw/R9/forensic_20260821_182744.txt (线程行数=0
+0)
+/data/data/com.termux/files/home/field_auto.sh: line 107: [: 0
+0: integer expected
+[card] 无残留, 继续
+[card] 第4步: 体检三旗 (新 boot 会自动等满 10 分钟)
+[card] boot=0ccbcac1-a213-44c7-9096-3b4aff61f7d3 enforce=Enforcing settle=OK
+[card] load=LOAD_WAIT (第0次等待)
+[card] 负载真高, 等3分钟再试...
+[card] load=LOAD_WAIT (第1次等待)
+[card] 负载真高, 等3分钟再试...
+[card] load=LOAD_WAIT (第2次等待)
+[card] 裁定: 照打(评审附录A)
+[card] 体检完成,开始开火
+[card] 开火 R9 (约4分钟,请勿动手机,保持亮屏)...
+[card] R9_RC=255 enforce=Enforcing
+[card] R9 门槛判定: R_MISS
+[card] 轮间负载闸: LOAD_WAIT
+[card] 轮间负载高 (疑似卡死线程占核) -> 不打第二轮, 保设备干净
+[card] 第6步: 回收数据并回传
+[card] 结束活体: Enforcing 0ccbcac1-a213-44c7-9096-3b4aff61f7d3 16.81 38.34 28.20 1/7195 23836 

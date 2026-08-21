@@ -258,11 +258,30 @@ void slide_pselect_stack_copy(void) {
   atomic_store(&slide_consume_last_sched_ret, -1);
   atomic_store(&slide_consume_last_sched_errno, 0);
 
+  /* mt61: 窗口 2s 死值 -> 环境可调, 默认 20s。R7/R9 实证 (两轮同签名,
+   * 均在 LOAD_WAIT 负载下开火): consumer 风暴整体掉出 2s 窗口 — calls=1
+   * 在窗口内 (自旋段仍占核), 但首个 mt19b 打印出现在 pselect 返回行之后
+   * = usleep(50ms) 睡醒后重新排队, 环境负载 16.02/15.96/15.43 (16 核全
+   * 饱和, 取证证实零残留 = 纯 MIUI 环境负载) 下 SCHED_NORMAL shell 线程
+   * 唤醒->上核延迟以秒计, 6 发触发 (~0.5s CPU) 全部落在窗口关闭之后 =
+   * erase 从未在 fdset 帧存活期间发生 = 写结构上不可能。R9 排除"内核
+   * 卡死" (sched ret=0 秒回, 只是迟到); A1_1 WIN 轮窗口 held 满整个
+   * harness 时长 = 长窗口与胜利形态兼容。fdset 帧在 waiter 私有内核栈,
+   * 无跨任务暴露面。PSELECT_WINDOW_SECONDS 覆盖 (>=1)。 */
+  long mt61_window_secs = 20;
+  char *mt61_window_env = getenv("PSELECT_WINDOW_SECONDS");
+  if (mt61_window_env) {
+    long mt61_parsed = strtol(mt61_window_env, NULL, 0);
+    if (mt61_parsed >= 1) mt61_window_secs = mt61_parsed;
+  }
   struct timespec timeout = {
-    .tv_sec = PSELECT_TIMEOUT_SEC,
+    .tv_sec = mt61_window_secs,
     .tv_nsec = 0,
   };
   struct timespec *timeoutp = &timeout;
+  pr_info("mt61: pselect window=%lds (mt60 时代为 2s 死值)\n",
+          mt61_window_secs);
+  fflush(stdout);
 
   atomic_store(&slide_consume_go, 1);
   errno = 0;

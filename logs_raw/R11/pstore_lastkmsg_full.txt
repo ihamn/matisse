@@ -1,0 +1,583 @@
+2026-08-21 19:26:13 SYSTEM_LAST_KMSG (compressed text, 13272 bytes)
+isPrevious: true
+Build: Redmi/matisse/matisse:14/UP1A.231005.007/OS2.0.6.0.ULKCNXM:user/release-keys
+Hardware: matisse
+Revision: 0
+Bootloader: unknown
+Radio: null
+Kernel: Linux version 5.10.209-android12-9-00019-g4ea09a298bb4-ab12292661 (build-user@build-host) (Android (7284624, based on r416183b) clang version 12.0.5 (https://android.googlesource.com/toolchain/llvm-project c935d99d7cf2016289302412d708641d52d2f7ee), LLD 12.0.5 (/buildbot/src/android/llvm-toolchain/out/llvm-project/lld c935d99d7cf2016289302412d708641d52d2f7ee)) #1 SMP PREEMPT Wed Aug 28 22:16:09 UTC 2024
+
+[[TRUNCATED]]
+0_get_rx_rate_info:(SW4 WARN) u4RxVector0 is 0
+[16341.894601][T402186] [wlan][2186]qmInsertReorderPkt:(RX INFO) Clear BAR SSN, SN 230 >= u4BarSSN 230 received
+[16341.965029][T400170] [Hang_Detect] hang_detect thread counts down 10:10, status 1.
+[16342.477370][C600000] [ccci1/dpmaif]net txq0-3(status=0xf)[2048]:2048-31204-31204(0x0), 2048-30747-30747(0x0), 2048-0-0(0x0), 2048-15-15(0x0)
+[16342.477421][C600000] [ccci1/dpmaif]Current txq pos: w/r/rel=(968,968,968)(54,54,54)(0,0,0)(30,30,30), tx_busy=0,0,0,0
+[16342.477504][C600000] [name:spm&][RC] ratio, duration_ms:10236, bus26m:0%, syspll:0%, dram:1%
+[16342.477684][T419289] [ccci1/net]to:clr(21:0)
+[16342.477756][T419289] [ccci1/net]ccmni0(1,1), irat_MD1, rx=(1546,1547925,34495), tx=(14,0,0), txq_len=(0,0), tx_drop=(0,0,0), rx_drop=(0,0), tx_busy=(0,0), sta=(0x3,0x81,0x0,0x0)
+[16342.477774][T419289] [ccci1/net]to:clr(21:0)
+[16342.477807][T419289] [ccci1/net]ccmni1(1,1), irat_MD1, rx=(3,252,34495), tx=(1,0,0), txq_len=(0,0), tx_drop=(0,0,0), rx_drop=(0,0), tx_busy=(0,0), sta=(0x3,0x81,0x0,0x0)
+[16342.477824][T419289] [ccci1/net]to:clr(21:0)
+[16342.477857][T419289] [ccci1/net]ccmni2(1,1), irat_MD1, rx=(99628,102587507,34495), tx=(42148,0,0), txq_len=(0,0), tx_drop=(0,0,0), rx_drop=(0,0), tx_busy=(0,0), sta=(0x3,0x81,0x0,0x0)
+[16342.477873][T419289] [ccci1/net]to:clr(21:0)
+[16342.477904][T419289] [ccci1/net]ccmni3(0,0), irat_MD1, rx=(24811,17984742,34495), tx=(19799,0,0), txq_len=(0,0), tx_drop=(0,0,0), rx_drop=(0,0), tx_busy=(0,0), sta=(0x2,0x80,0x1,0x1)
+[16342.478139][T419289] [ccci1/cif]total cnt=26012;rxq0 isr_cnt=338;rxq1 isr_cnt=415;rxq2 isr_cnt=0;rxq3 isr_cnt=65;rxq4 isr_cnt=6325;rxq5 isr_cnt=18857;rxq6 isr_cnt=7;rxq7 isr_cnt=22;rxq8 isr_cnt=0;rxq9 isr_cnt=0;rxq10 isr_cnt=0;rxq11 isr_cnt=0;rxq12 isr_cnt=0;rxq13 isr_cnt=0;rxq14 isr_cnt=0;rxq15 isr_cnt=1;rxq16 isr_cnt=0;rxq17 isr_cnt=0;rxq18 isr_cnt=0;rxq19 isr_cnt=0;rxq20 isr_cnt=0;rxq21 isr_cnt=0;rxq22 isr_cnt=0;rxq23 isr_cnt=0;
+[16342.539555][T102187] [wlan][2187]kalDumpMsduReportStats:(HAL INFO) TX_Delay D:[1:5:10:20]=[52:0:0:0:0] C:[10:20:50:80]=[50:2:1:0:0] M:[5:10:20:50]=[53:0:0:0:0] F:[10:20:50:80]=[0:0:0:0:0] Txfail:0
+[16342.539592][T102187] [wlan][2187]kalDumpHifStats:(HAL INFO) I[1389719 100] T[47291 47291 47291 / 655828 655828 655828 655828] R[1833602 / 420078] T_R[0 0 0 0 0]  R_R[0 0 0 0] Tok[0/4096] Rfb[4149/4150] txreg[474790] rxreg[1201501]
+[16342.539859][T502186] [wlan][wlan][2186]statsParseARPInfo:(RX INFO) <RX> Arp Req From IP: 192.***.***.254
+[16342.540069][T502186] [wlan][2186]kalPerMonUpdate:(SW4 INFO) <1054ms> Tput: 451680(0.441mbps) [26836:52:32673:53][0:0:0:0][0:0:0:0][0:0:0:0] Pending:0/4096 [0:0:0:0][0:0:0:0][0:0:0:0][0:0:0:0] Used:0/4096/1024 [0][0][0][0][0] LQ[739086:8295:48608] lv:0 th:5 fg:0x9 Mo:[0:0:0:0] TxDp[ST:BS:FO:QM:DP]:40:0:0:0:1290
+[16342.540110][T502186] [wlan][2186]kalPerMonUpdate:(SW4 INFO) ndevdrp:[0:0:0:0][0:0:0:0][0:0:0:0][0:0:0:0] drv[RM,IL,RI,RT,RM,RW,RA,RB,DT,NS,IB,HS,LS,DD,ME,BD,NI,DR,TE,CE,DN,FE,DE,IE,TME]:1916625,0,1828498,1799024,0,1793290,701,434,5102,0,0,7,0,124,0,491,0,4480,0,0,5102,0,0,0,0.
+[16342.541729][T402186] [wlan][2186]cnmTimerDoTimeOutCheck:(CNM INFO) timer timeout, timer 00000000f7f35349 func kalPerMonHandler.cfi_jt [wlan_drv_gen4m_6983]
+[16342.541773][T402186] [wlan][2186]kalSetPerfReport:(SW4 INFO) Rate[78][0][0][0] RCPI[255][0][0][0]
+[16342.542210][T402186] [wlan][2186]cnmTimerStartTimer:(CNM INFO) In DoTimeOut, timer 00000000f7f35349 func kalPerMonHandler.cfi_jt [wlan_drv_gen4m_6983] 1000 ms timercount 0
+[16342.542247][T402186] [wlan][2186]wlanLinkQualityMonitor:(SW4 INFO) Link Quality: Tx(rate:1170, total:739086, retry:1955, fail:2438, RTS fail:717, ACK fail:1721), Rx(rate:390, total:8295, dup:124, error:41242), PER(55), Congestion(idle slot:968496592, diff:48608, AwakeDur:10143998)
+[16342.543065][T502187] [wlan][2187]wlanTxCmdDoneCb:(TX INFO) Add command: 000000002fc5cdf9, nicCmdEventQueryStaStatistics.cfi_jt [wlan_drv_gen4m_6983], cmd=0x85, seq=129
+[16342.543498][T502187] [wlan][2187]wlanTxCmdDoneCb:(TX INFO) Add command: 000000006299fb22, nicCmdEventQueryStatistics.cfi_jt [wlan_drv_gen4m_6983], cmd=0x82, seq=130
+[16342.544297][T402186] [wlan][2186]nicRxProcessEventPacket:(RX INFO) Not static config event: id=0x21, seq=129
+[16342.544832][T402186] [wlan][2186]nicGetPendingCmdInfo:(TX INFO) Get command: 000000002fc5cdf9, nicCmdEventQueryStaStatistics.cfi_jt [wlan_drv_gen4m_6983], cmd=0x85, seq=129
+[16342.545266][T402186] [wlan][2186]nicGetPendingCmdInfo:(TX INFO) Get command: 000000006299fb22, nicCmdEventQueryStatistics.cfi_jt [wlan_drv_gen4m_6983], cmd=0x82, seq=130
+[16342.978333][T402187] [wlan][2187]wlanTxCmdDoneCb:(TX INFO) Add command: 000000008252f6d1, nicCmdEventQueryLinkStats.cfi_jt [wlan_drv_gen4m_6983], cmd=0x84, seq=131
+[16342.979536][T602186] [wlan][2186]nicGetPendingCmdInfo:(TX INFO) Get command: 000000008252f6d1, nicCmdEventQueryLinkStats.cfi_jt [wlan_drv_gen4m_6983], cmd=0x84, seq=131
+[16342.984053][T502187] [wlan][2187]wlanTxCmdDoneCb:(TX INFO) Add command: 000000009b9c2716, nicCmdEventQueryLinkSpeedEx.cfi_jt [wlan_drv_gen4m_6983], cmd=0x81, seq=132
+[16342.984746][T502186] [wlan][2186]nicUpdateLinkQuality:(RLM INFO) Rssi=-62, NewRssi=-62
+[16342.985145][T502186] [wlan][2186]nicGetPendingCmdInfo:(TX INFO) Get command: 000000009b9c2716, nicCmdEventQueryLinkSpeedEx.cfi_jt [wlan_drv_gen4m_6983], cmd=0x81, seq=132
+[16342.985205][T502186] [wlan][2186]soc7_0_get_rx_rate_info:(SW4 ERROR) prStaRecOfAP is null
+[16342.987577][T501302] [wlan][1302]mtk_cfg80211_get_station:(REQ INFO) link speed=1444/1444, bw=0/0, rssi=-62, BSSID:[94:7f:**:**:**:39],TxFail=0, TxTimeOut=0, TxOK=9070, RxOK=10367, FcsErr=60
+[16342.989056][C501759] [name:spm&][SPM] system_bus wake up by  R12_SYSTIMER, timer_out = 617, r13 = 0x8002fae0, debug_flag = 0x10000030 0x3, r12 = 0x40000, r12_ext = 0x0, raw_sta = 0x0 0x0 0x0, idle_sta = 0x0, req_sta =  0x0 0xff000000 0x1fd 0xf0f001a 0x0 0xe001f000 0x0, cg_check_sta =0x1fd, isr = 0x0, rt_req_sta0 = 0x0 rt_req_sta1 = 0x0 rt_req_sta2 = 0xffffffff rt_req_sta3 = 0xffffffff dram_sw_con_3 = 0x0, raw_ext_sta = 0x208a55, wake_misc = 0x180030, pcm_flag = 0x2090067 0x2000000 0x2010067 0x2010067, req = 0x6360630,  clk_settle = 0x60fe, 
+[16343.325433][ T2186] [wlan][2186]cnmTimerDoTimeOutCheck:(CNM INFO) timer timeout, timer 00000000782e63bd func qmHandleReorderBubbleTimeout.cfi_jt [wlan_drv_gen4m_6983]
+[16343.545203][ T2186] [wlan][2186]kalPerMonUpdate:(SW4 INFO) <1006ms> Tput: 186048(0.181mbps) [11743:48:11653:47][0:0:0:0][0:0:0:0][0:0:0:0] Pending:0/4096 [0:0:0:0][0:0:0:0][0:0:0:0][0:0:0:0] Used:0/4096/1024 [0][0][0][0][0] LQ[739156:8347:48715] lv:0 th:5 fg:0x9 Mo:[0:0:0:0] TxDp[ST:BS:FO:QM:DP]:40:0:0:0:1290
+[16343.545263][ T2186] [wlan][2186]kalPerMonUpdate:(SW4 INFO) ndevdrp:[0:0:0:0][0:0:0:0][0:0:0:0][0:0:0:0] drv[RM,IL,RI,RT,RM,RW,RA,RB,DT,NS,IB,HS,LS,DD,ME,BD,NI,DR,TE,CE,DN,FE,DE,IE,TME]:1916675,0,1828545,1799069,0,1793328,701,441,5102,0,0,7,0,124,0,491,0,4480,0,0,5102,0,0,0,0.
+[16343.545787][ T2186] [wlan][2186]cnmTimerDoTimeOutCheck:(CNM INFO) timer timeout, timer 00000000f7f35349 func kalPerMonHandler.cfi_jt [wlan_drv_gen4m_6983]
+[16343.545822][ T2186] [wlan][2186]kalSetPerfReport:(SW4 INFO) Rate[52][0][0][0] RCPI[255][0][0][0]
+[16343.545844][ T2186] asicConnac2xFillCmdTxdInfo: 9 callbacks suppressed
+[16343.545857][ T2186] [wlan][wlan][2186]asicConnac2xFillCmdTxdInfo:(TX INFO) TX CMD: ID[0x7E] SEQ[133] SET[1] LEN[376]
+[16343.546234][ T2186] [wlan][2186]cnmTimerStartTimer:(CNM INFO) In DoTimeOut, timer 00000000f7f35349 func kalPerMonHandler.cfi_jt [wlan_drv_gen4m_6983] 1000 ms timercount 0
+[16343.546291][ T2186] [wlan][wlan][2186]asicConnac2xFillCmdTxdInfo:(TX INFO) TX CMD: ID[0x85] SEQ[134] SET[0] LEN[92]
+[16343.546306][ T2186] [wlan][wlan][2186]asicConnac2xFillCmdTxdInfo:(TX INFO) TX CMD: ID[0x82] SEQ[135] SET[0] LEN[248]
+[16343.546321][ T2186] [wlan][2186]wlanLinkQualityMonitor:(SW4 INFO) Link Quality: Tx(rate:1170, total:739156, retry:1970, fail:2471, RTS fail:739, ACK fail:1732), Rx(rate:20, total:8347, dup:124, error:41302), PER(47), Congestion(idle slot:968545307, diff:48715, AwakeDur:10145023)
+[16343.547433][T502187] [wlan][2187]wlanTxCmdDoneCb:(TX INFO) Add command: 00000000aa10ef3c, nicCmdEventQueryStaStatistics.cfi_jt [wlan_drv_gen4m_6983], cmd=0x85, seq=134
+[16343.547880][T502187] [wlan][2187]wlanTxCmdDoneCb:(TX INFO) Add command: 0000000031fc9a06, nicCmdEventQueryStatistics.cfi_jt [wlan_drv_gen4m_6983], cmd=0x82, seq=135
+[16343.548256][T502187] [wlan][2187]kalDumpMsduReportStats:(HAL INFO) TX_Delay D:[1:5:10:20]=[48:0:0:0:0] C:[10:20:50:80]=[48:0:0:0:0] M:[5:10:20:50]=[48:0:0:0:0] F:[10:20:50:80]=[0:0:0:0:0] Txfail:0
+[16343.548305][T502187] [wlan][2187]kalDumpHifStats:(HAL INFO) I[1389842 100] T[47299 47299 47296 / 655876 655876 655876 655876] R[1833648 / 420120] T_R[0 0 0 3 0]  R_R[0 0 0 0] Tok[0/4096] Rfb[4150/4150] txreg[474834] rxreg[1201581]
+[16343.548416][T602186] [wlan][2186]nicRxProcessEventPacket:(RX INFO) Not static config event: id=0x21, seq=134
+[16343.548861][T602186] [wlan][2186]nicGetPendingCmdInfo:(TX INFO) Get command: 00000000aa10ef3c, nicCmdEventQueryStaStatistics.cfi_jt [wlan_drv_gen4m_6983], cmd=0x85, seq=134
+[16343.549304][T602186] [wlan][2186]nicGetPendingCmdInfo:(TX INFO) Get command: 0000000031fc9a06, nicCmdEventQueryStatistics.cfi_jt [wlan_drv_gen4m_6983], cmd=0x82, seq=135
+[16343.625791][T502186] [wlan][wlan][2186]statsParseARPInfo:(RX INFO) <RX> Arp Req From IP: 192.***.***.254
+[16344.557310][ T2186] [wlan][2186]kalPerMonUpdate:(SW4 INFO) <1012ms> Tput: 2200(0.002mbps) [0:0:279:2][0:0:0:0][0:0:0:0][0:0:0:0] Pending:0/4096 [0:0:0:0][0:0:0:0][0:0:0:0][0:0:0:0] Used:0/4096/1024 [0][0][0][0][0] LQ[739224:8394:46785] lv:0 th:5 fg:0x9 Mo:[0:0:0:0] TxDp[ST:BS:FO:QM:DP]:40:0:0:0:1290
+[16344.557367][ T2186] [wlan][2186]kalPerMonUpdate:(SW4 INFO) ndevdrp:[0:0:0:0][0:0:0:0][0:0:0:0][0:0:0:0] drv[RM,IL,RI,RT,RM,RW,RA,RB,DT,NS,IB,HS,LS,DD,ME,BD,NI,DR,TE,CE,DN,FE,DE,IE,TME]:1916679,0,1828547,1799069,0,1793328,701,441,5102,0,0,7,0,124,0,491,0,4480,0,0,5102,0,0,0,0.
+[16344.557854][ T2186] [wlan][2186]cnmTimerDoTimeOutCheck:(CNM INFO) timer timeout, timer 00000000f7f35349 func kalPerMonHandler.cfi_jt [wlan_drv_gen4m_6983]
+[16344.557885][ T2186] [wlan][2186]kalSetPerfReport:(SW4 INFO) Rate[4][0][0][0] RCPI[255][0][0][0]
+[16344.557911][ T2186] [wlan][wlan][2186]asicConnac2xFillCmdTxdInfo:(TX INFO) TX CMD: ID[0x7E] SEQ[136] SET[1] LEN[376]
+[16344.558245][ T2186] [wlan][2186]cnmTimerStartTimer:(CNM INFO) In DoTimeOut, timer 00000000f7f35349 func kalPerMonHandler.cfi_jt [wlan_drv_gen4m_6983] 1000 ms timercount 0
+[16344.558297][ T2186] [wlan][wlan][2186]asicConnac2xFillCmdTxdInfo:(TX INFO) TX CMD: ID[0x85] SEQ[137] SET[0] LEN[92]
+[16344.558316][ T2186] [wlan][wlan][2186]asicConnac2xFillCmdTxdInfo:(TX INFO) TX CMD: ID[0x82] SEQ[138] SET[0] LEN[248]
+[16344.558331][ T2186] [wlan][2186]wlanLinkQualityMonitor:(SW4 INFO) Link Quality: Tx(rate:1170, total:739224, retry:1989, fail:2498, RTS fail:746, ACK fail:1752), Rx(rate:260, total:8394, dup:124, error:41354), PER(39), Congestion(idle slot:968592092, diff:46785, AwakeDur:10146028)
+[16344.559305][T502187] [wlan][2187]wlanTxCmdDoneCb:(TX INFO) Add command: 00000000fd55a4d9, nicCmdEventQueryStaStatistics.cfi_jt [wlan_drv_gen4m_6983], cmd=0x85, seq=137
+[16344.559726][T502187] [wlan][2187]wlanTxCmdDoneCb:(TX INFO) Add command: 00000000df0d7df2, nicCmdEventQueryStatistics.cfi_jt [wlan_drv_gen4m_6983], cmd=0x82, seq=138
+[16344.560041][T502187] [wlan][2187]kalDumpMsduReportStats:(HAL INFO) TX_Delay D:[1:5:10:20]=[0:0:0:0:0] C:[10:20:50:80]=[0:0:0:0:0] M:[5:10:20:50]=[0:0:0:0:0] F:[10:20:50:80]=[0:0:0:0:0] Txfail:0
+[16344.560085][T502187] [wlan][2187]kalDumpHifStats:(HAL INFO) I[1389846 100] T[47302 47302 47299 / 655876 655876 655876 655876] R[1833650 / 420122] T_R[0 0 0 3 0]  R_R[0 0 0 0] Tok[0/4096] Rfb[4150/4150] txreg[474834] rxreg[1201585]
+[16344.560382][T602186] [wlan][2186]nicRxProcessEventPacket:(RX INFO) Not static config event: id=0x21, seq=137
+[16344.560885][T602186] [wlan][2186]nicGetPendingCmdInfo:(TX INFO) Get command: 00000000fd55a4d9, nicCmdEventQueryStaStatistics.cfi_jt [wlan_drv_gen4m_6983], cmd=0x85, seq=137
+[16344.561315][T602186] [wlan][2186]nicGetPendingCmdInfo:(TX INFO) Get command: 00000000df0d7df2, nicCmdEventQueryStatistics.cfi_jt [wlan_drv_gen4m_6983], cmd=0x82, seq=138
+[16344.613113][T502186] [wlan][wlan][2186]statsParseARPInfo:(RX INFO) <RX> Arp Req From IP: 192.***.***.254
+[16344.781455][T221458] power_debug_work: start 
+[16344.781530][T221458] active wake lock : WLAN timeout,last_time:16344628
+[16344.781712][T221458] active wake lock : disp_crtc0_wakelock,last_time:16214756
+[16344.964786][  T479] type=1400 audit(1787311473.687:38028): avc:  denied  { rename } for  comm="Thread-18" name="msf_lifecycle_monitor.xml" dev="dm-55" ino=657452 scontext=u:r:untrusted_app:s0:c59,c257,c512,c768 tcontext=u:object_r:unlabeled:s0 tclass=file permissive=0 app=com.tencent.mobileqq
+[16345.022412][T200479] type=1400 audit(1787311473.747:38029): avc:  denied  { read } for  comm="Thread_3" name="cache" dev="dm-11" ino=98 scontext=u:r:untrusted_app:s0:c59,c257,c512,c768 tcontext=u:object_r:cache_file:s0 tclass=lnk_file permissive=0 app=com.tencent.mobileqq
+[16345.022773][T200479] type=1400 audit(1787311473.747:38030): avc:  denied  { read } for  comm="Thread_3" name="cache" dev="dm-11" ino=98 scontext=u:r:untrusted_app:s0:c59,c257,c512,c768 tcontext=u:object_r:cache_file:s0 tclass=lnk_file permissive=0 app=com.tencent.mobileqq
+[16345.022960][T200479] type=1400 audit(1787311473.747:38031): avc:  denied  { read } for  comm="Thread_3" name="cache" dev="dm-11" ino=98 scontext=u:r:untrusted_app:s0:c59,c257,c512,c768 tcontext=u:object_r:cache_file:s0 tclass=lnk_file permissive=0 app=com.tencent.mobileqq
+[16345.023057][T200479] type=1400 audit(1787311473.747:38032): avc:  denied  { read } for  comm="Thread_3" name="cache" dev="dm-11" ino=98 scontext=u:r:untrusted_app:s0:c59,c257,c512,c768 tcontext=u:object_r:cache_file:s0 tclass=lnk_file permissive=0 app=com.tencent.mobileqq
+[16345.023172][T200479] type=1400 audit(1787311473.747:38033): avc:  denied  { read } for  comm="Thread_3" name="cache" dev="dm-11" ino=98 scontext=u:r:untrusted_app:s0:c59,c257,c512,c768 tcontext=u:object_r:cache_file:s0 tclass=lnk_file permissive=0 app=com.tencent.mobileqq
+[16345.023262][T200479] type=1400 audit(1787311473.747:38034): avc:  denied  { read } for  comm="Thread_3" name="cache" dev="dm-11" ino=98 scontext=u:r:untrusted_app:s0:c59,c257,c512,c768 tcontext=u:object_r:cache_file:s0 tclass=lnk_file permissive=0 app=com.tencent.mobileqq
+[16345.023348][T200479] type=1400 audit(1787311473.747:38035): avc:  denied  { read } for  comm="Thread_3" name="cache" dev="dm-11" ino=98 scontext=u:r:untrusted_app:s0:c59,c257,c512,c768 tcontext=u:object_r:cache_file:s0 tclass=lnk_file permissive=0 app=com.tencent.mobileqq
+[16345.040484][T128573] audit: audit_lost=25873 audit_rate_limit=5 audit_backlog_limit=64
+[16345.040522][T128573] audit: rate limit exceeded
+[16345.211242][T200429] servicemanager: Found android.hardware.security.keymint.IRemotelyProvisionedComponent/default in device VINTF manifest.
+[16345.581089][ T2186] [wlan][2186]kalPerMonUpdate:(SW4 INFO) <1023ms> Tput: 76240(0.074mbps) [1911:14:7839:18][0:0:0:0][0:0:0:0][0:0:0:0] Pending:0/4096 [0:0:0:0][0:0:0:0][0:0:0:0][0:0:0:0] Used:0/4096/1024 [0][0][0][0][0] LQ[739224:8396:53830] lv:0 th:5 fg:0x9 Mo:[0:0:0:0] TxDp[ST:BS:FO:QM:DP]:40:0:0:0:1290
+[16345.581136][ T2186] [wlan][2186]kalPerMonUpdate:(SW4 INFO) ndevdrp:[0:0:0:0][0:0:0:0][0:0:0:0][0:0:0:0] drv[RM,IL,RI,RT,RM,RW,RA,RB,DT,NS,IB,HS,LS,DD,ME,BD,NI,DR,TE,CE,DN,FE,DE,IE,TME]:1916699,0,1828565,1799085,0,1793344,701,441,5102,0,0,7,0,124,0,491,0,4480,0,0,5102,0,0,0,0.
+[16345.581535][ T2186] [wlan][2186]cnmTimerDoTimeOutCheck:(CNM INFO) timer timeout, timer 00000000f7f35349 func kalPerMonHandler.cfi_jt [wlan_drv_gen4m_6983]
+[16345.581564][ T2186] [wlan][2186]kalSetPerfReport:(SW4 INFO) Rate[52][0][0][0] RCPI[255][0][0][0]
+[16345.581586][ T2186] [wlan][wlan][2186]asicConnac2xFillCmdTxdInfo:(TX INFO) TX CMD: ID[0x7E] SEQ[139] SET[1] LEN[376]
+[16345.581877][ T2186] [wlan][2186]cnmTimerStartTimer:(CNM INFO) In DoTimeOut, timer 00000000f7f35349 func kalPerMonHandler.cfi_jt [wlan_drv_gen4m_6983] 1000 ms timercount 0
+[16345.581921][ T2186] [wlan][wlan][2186]asicConnac2xFillCmdTxdInfo:(TX INFO) TX CMD: ID[0x85] SEQ[140] SET[0] LEN[92]
+[16345.581938][ T2186] [wlan][wlan][2186]asicConnac2xFillCmdTxdInfo:(TX INFO) TX CMD: ID[0x82] SEQ[141] SET[0] LEN[248]
+[16345.581950][ T2186] [wlan][2186]wlanLinkQualityMonitor:(SW4 INFO) Link Quality: Tx(rate:1170, total:739224, retry:1989, fail:2498, RTS fail:746, ACK fail:1752), Rx(rate:20, total:8396, dup:124, error:41398), PER(0), Congestion(idle slot:968645922, diff:53830, AwakeDur:10147040)
+[16345.582473][T402187] [wlan][2187]wlanTxCmdDoneCb:(TX INFO) Add command: 000000003b210731, nicCmdEventQueryStaStatistics.cfi_jt [wlan_drv_gen4m_6983], cmd=0x85, seq=140
+[16345.582592][T402187] [wlan][2187]wlanTxCmdDoneCb:(TX INFO) Add command: 0000000083e96741, nicCmdEventQueryStatistics.cfi_jt [wlan_drv_gen4m_6983], cmd=0x82, seq=141
+[16345.582826][T402187] [wlan][2187]kalDumpMsduReportStats:(HAL INFO) TX_Delay D:[1:5:10:20]=[14:0:0:0:0] C:[10:20:50:80]=[13:0:1:0:0] M:[5:10:20:50]=[14:0:0:0:0] F:[10:20:50:80]=[0:0:0:0:0] Txfail:0
+[16345.582867][T402187] [wlan][2187]kalDumpHifStats:(HAL INFO) I[1389887 100] T[47305 47305 47302 / 655890 655890 655890 655890] R[1833668 / 420136] T_R[0 0 0 3 0]  R_R[0 0 0 0] Tok[0/4096] Rfb[4150/4150] txreg[474846] rxreg[1201617]
+[16345.584290][T402186] [wlan][2186]nicRxProcessEventPacket:(RX INFO) Not static config event: id=0x21, seq=140
+[16345.584783][T402186] [wlan][2186]nicGetPendingCmdInfo:(TX INFO) Get command: 000000003b210731, nicCmdEventQueryStaStatistics.cfi_jt [wlan_drv_gen4m_6983], cmd=0x85, seq=140
+[16345.585226][T402186] [wlan][2186]nicGetPendingCmdInfo:(TX INFO) Get command: 0000000083e96741, nicCmdEventQueryStatistics.cfi_jt [wlan_drv_gen4m_6983], cmd=0x82, seq=141
+[16345.610014][T502186] [wlan][wlan][2186]statsParseARPInfo:(RX INFO) <RX> Arp Req From IP: 192.***.***.254
+[16345.619482][T500573] tee_ioctl_invoke: [tee_ioctl_invoke][413] TEEI invoke command START
+[16345.645130][T100279] [TZ_LOG] [01;34mkm5     | {#CgozChvhlVNpQKHG+sCkRi8INDb3x/G1ei+IWa0iFBi4Jw==#}[0m
+[16345.701315][T200279] [TZ_LOG] [01;31muTsecMan| disable verify ca cert[0m
+[16345.729080][T100279] [TZ_LOG] wNvA1e+jRgHe0HoGNtta verify success.[0m
+[16345.729119][T100279] [TZ_LOG] [01;31muTsecMan| [0m
+[16345.729125][T100279] [TZ_LOG] [01;31muTsecMan| ta unpack success.[0m
+[16345.729131][T100279] [TZ_LOG] [01;31muTsecMan| [0m
+[16345.729137][T100279] [TZ_LOG] [01;34muTsst   | rpmb mode is entity.[0m
+[16345.729143][T100279] [TZ_LOG] [01;31muTbtaLdr| : loading 'ta_ns/d91f322ad5a441d5955110eda3272fc0'[0m
+[16345.729150][T100279] [TZ_LOG] [01;31muTbtaLdr| : parent cap is a14037[0m
+[16345.785013][  T279] [TZ_LOG] [01;34mkmsetkey| [ISEE] Current TA enable log enc[0m
+[16345.785063][  T279] [TZ_LOG] [01;34muTsst   | rpmb key is programmed.[0m
+[16345.996698][T502186] [wlan][wlan][2186]asicConnac2xFillCmdTxdInfo:(TX INFO) TX CMD: ID[0x84] SEQ[142] SET[0] LEN[72]
+[16345.997753][T402187] [wlan][2187]wlanTxCmdDoneCb:(TX INFO) Add command: 00000000c71a3e9e, nicCmdEventQueryLinkStats.cfi_jt [wlan_drv_gen4m_6983], cmd=0x84, seq=142
+[16345.999156][T502186] [wlan][2186]nicGetPendingCmdInfo:(TX INFO) Get command: 00000000c71a3e9e, nicCmdEventQueryLinkStats.cfi_jt [wlan_drv_gen4m_6983], cmd=0x84, seq=142
+[16346.004191][T502187] [wlan][2187]wlanTxCmdDoneCb:(TX INFO) Add command: 00000000d61460c3, nicCmdEventQueryLinkSpeedEx.cfi_jt [wlan_drv_gen4m_6983], cmd=0x81, seq=143
+[16346.004758][T402186] [wlan][2186]nicUpdateLinkQuality:(RLM INFO) Rssi=-61, NewRssi=-61
+[16346.005201][T402186] [wlan][2186]nicGetPendingCmdInfo:(TX INFO) Get command: 00000000d61460c3, nicCmdEventQueryLinkSpeedEx.cfi_jt [wlan_drv_gen4m_6983], cmd=0x81, seq=143
+[16346.005257][T402186] [wlan][2186]soc7_0_get_rx_rate_info:(SW4 ERROR) prStaRecOfAP is null
+[16346.007492][T501302] [wlan][1302]mtk_cfg80211_get_station:(REQ INFO) link speed=1444/1444, bw=0/0, rssi=-61, BSSID:[94:7f:**:**:**:39],TxFail=0, TxTimeOut=0, TxOK=9120, RxOK=10425, FcsErr=37
+[16346.069059][T720292] [XMCHG_NFG1000B] read FG TBAT = 3066
+[16346.071283][T720292] fg_update_status fg_update rsoc=52, raw_soc=5175, vbat=3903, cycle_count=830
+[16346.071317][T720292] fg_get_usb_psy_and_prop fg_update real_full=0, real_type=17
+[16346.071356][T720292] POWER_SUPPLY_PROP_STATUS=2
+[16346.071365][T720292] smooth_new:sys_soc:55 last_sys_soc:55 soc_delta:0 charging_status:2 unit_time:10000 batt_ma_avg=0
+[16346.071378][T720292] mt_usb_get_property psp:4
+[16346.071393][T720292] input_suspend_get 0
+[16346.071402][T720292] input_suspend_get 0
+[16346.071410][T720292] is_charger_exist:0 system_soc_now:55 temp:336 rsoc:52
+[16346.071413][T720292] Does not satisfy the strong smoothing condition
+[16346.071421][T720292] charger is not in place, reset last_update_time
+[16346.071428][T720292] smooth_new:sys_soc:55 last_sys_soc:55 ,strong_smooth : 0  smooth_slow_down: 0
+[16346.071438][T720292] [XMCHG_NFG1000B] [FG_STATUS] [UISOC RSOC RAWSOC TEMP_SOC SOH] = [55 52 5175 0 83], [VBAT CELL0 CELL1 IBAT TBAT FC FAST_MODE] = [3903 3903 3903 585 336 0 0]
+[16346.605379][T302186] [wlan][2186]kalPerMonUpdate:(SW4 INFO) <1025ms> Tput: 1040(0.001mbps) [74:1:60:1][0:0:0:0][0:0:0:0][0:0:0:0] Pending:0/4096 [0:0:0:0][0:0:0:0][0:0:0:0][0:0:0:0] Used:0/4096/1024 [0][0][0][0][0] LQ[739241:8414:51916] lv:0 th:5 fg:0x9 Mo:[0:0:0:0] TxDp[ST:BS:FO:QM:DP]:40:0:0:0:1290
+[16346.605438][T302186] [wlan][2186]kalPerMonUpdate:(SW4 INFO) ndevdrp:[0:0:0:0][0:0:0:0][0:0:0:0][0:0:0:0] drv[RM,IL,RI,RT,RM,RW,RA,RB,DT,NS,IB,HS,LS,DD,ME,BD,NI,DR,TE,CE,DN,FE,DE,IE,TME]:1916704,0,1828566,1799085,0,1793344,701,441,5102,0,0,7,0,124,0,491,0,4480,0,0,5102,0,0,0,0.
+[16346.605743][T302186] [wlan][2186]cnmTimerDoTimeOutCheck:(CNM INFO) timer timeout, timer 00000000f7f35349 func kalPerMonHandler.cfi_jt [wlan_drv_gen4m_6983]
+[16346.605764][T302186] [wlan][2186]kalSetPerfReport:(SW4 INFO) Rate[4][0][0][0] RCPI[255][0][0][0]
+[16346.606024][T302186] [wlan][2186]cnmTimerStartTimer:(CNM INFO) In DoTimeOut, timer 00000000f7f35349 func kalPerMonHandler.cfi_jt [wlan_drv_gen4m_6983] 1000 ms timercount 0
+[16346.606069][T302186] [wlan][2186]wlanLinkQualityMonitor:(SW4 INFO) Link Quality: Tx(rate:1170, total:739241, retry:1993, fail:2503, RTS fail:748, ACK fail:1755), Rx(rate:260, total:8414, dup:124, error:41435), PER(29), Congestion(idle slot:968697838, diff:51916, AwakeDur:10148064)
+[16346.606665][T502187] [wlan][2187]wlanTxCmdDoneCb:(TX INFO) Add command: 000000006c2fc3fe, nicCmdEventQueryStaStatistics.cfi_jt [wlan_drv_gen4m_6983], cmd=0x85, seq=145
+[16346.607080][T502187] [wlan][2187]wlanTxCmdDoneCb:(TX INFO) Add command: 0000000095a382cb, nicCmdEventQueryStatistics.cfi_jt [wlan_drv_gen4m_6983], cmd=0x82, seq=146
+[16346.607343][T502187] [wlan][2187]kalDumpMsduReportStats:(HAL INFO) TX_Delay D:[1:5:10:20]=[1:0:0:0:0] C:[10:20:50:80]=[1:0:0:0:0] M:[5:10:20:50]=[1:0:0:0:0] F:[10:20:50:80]=[0:0:0:0:0] Txfail:0
+[16346.607382][T502187] [wlan][2187]kalDumpHifStats:(HAL INFO) I[1389897 100] T[47310 47310 47307 / 655891 655891 655891 655891] R[1833669 / 420141] T_R[0 0 0 3 0]  R_R[0 0 0 0] Tok[0/4096] Rfb[4150/4150] txreg[474847] rxreg[1201623]
+[16346.607936][T502186] [wlan][2186]nicRxProcessEventPacket:(RX INFO) Not static config event: id=0x21, seq=145
+[16346.608336][T502186] [wlan][2186]nicGetPendingCmdInfo:(TX INFO) Get command: 000000006c2fc3fe, nicCmdEventQueryStaStatistics.cfi_jt [wlan_drv_gen4m_6983], cmd=0x85, seq=145
+[16346.608748][T502186] [wlan][2186]nicGetPendingCmdInfo:(TX INFO) Get command: 0000000095a382cb, nicCmdEventQueryStatistics.cfi_jt [wlan_drv_gen4m_6983], cmd=0x82, seq=146
+[16346.694820][T502186] [wlan][wlan][2186]statsParseARPInfo:(RX INFO) <RX> Arp Req From IP: 192.***.***.254
+[16346.713089][T300279] [TZ_LOG] [01;31muTsecMan| disable verify ca cert[0m
+[16346.713157][T300279] [TZ_LOG] [01;31muTsecMan| ta verify success.[0m
+[16346.713165][T300279] [TZ_LOG] [01;31muTsecMan| [0m
+[16346.713173][T300279] [TZ_LOG] [01;31muTsecMan| ta unpack success.[0m
+[16346.713179][T300279] [TZ_LOG] [01;31muTsecMan| [0m
+[16346.713185][T300279] [TZ_LOG] [01;34muTsst   | rpmb mode is entity.[0m
+[16346.713191][T300279] [TZ_LOG] [01;31muTbtaLdr| : loading 'ta_ns/d91f322ad5a441d5955110eda3272fc0'[0m
+[16346.713197][T300279] [TZ_LOG] [01;31muTbtaLdr| : parent cap is a14037[0m
+[16346.730463][T502186] [wlan][wlan][2186]statsParseARPInfo:(RX INFO) <RX> Arp Req From IP: 192.***.***.254
+[16346.769048][T300279] [TZ_LOG] [01;34mkmsetkey| [ISEE] Current TA enable log enc[0m
+[16346.769112][T300279] [TZ_LOG] [01;34muTsst   | rpmb key is programmed.[0m
+[16347.316429][T500573] tee_ioctl_invoke: [tee_ioctl_invoke][446] TEEI invoke command END
+[16347.592430][T400573] tee_ioctl_invoke: [tee_ioctl_invoke][413] TEEI invoke command START
+[16347.592894][T500573] tee_ioctl_invoke: [tee_ioctl_invoke][446] TEEI invoke command END
+[16347.628008][T700573] tee_ioctl_invoke: [tee_ioctl_invoke][413] TEEI invoke command START
+[16347.628343][T600573] tee_ioctl_invoke: [tee_ioctl_invoke][446] TEEI invoke command END
+[16347.629017][T302186] [wlan][2186]kalPerMonUpdate:(SW4 INFO) <1023ms> Tput: 35216(0.034mbps) [766:5:3738:7][0:0:0:0][0:0:0:0][0:0:0:0] Pending:0/4096 [0:0:0:0][0:0:0:0][0:0:0:0][0:0:0:0] Used:0/4096/1024 [0][0][0][0][0] LQ[739241:8415:53408] lv:0 th:5 fg:0x9 Mo:[0:0:0:0] TxDp[ST:BS:FO:QM:DP]:40:0:0:0:1290
+[16347.629034][T302186] [wlan][2186]kalPerMonUpdate:(SW4 INFO) ndevdrp:[0:0:0:0][0:0:0:0][0:0:0:0][0:0:0:0] drv[RM,IL,RI,RT,RM,RW,RA,RB,DT,NS,IB,HS,LS,DD,ME,BD,NI,DR,TE,CE,DN,FE,DE,IE,TME]:1916713,0,1828573,1799090,0,1793348,701,442,5102,0,0,7,0,124,0,491,0,4480,0,0,5102,0,0,0,0.
+[16347.629325][T302186] [wlan][2186]cnmTimerDoTimeOutCheck:(CNM INFO) timer timeout, timer 00000000f7f35349 func kalPerMonHandler.cfi_jt [wlan_drv_gen4m_6983]
+[16347.629337][T302186] [wlan][2186]kalSetPerfReport:(SW4 INFO) Rate[52][0][0][0] RCPI[255][0][0][0]
+[16347.629591][T302186] [wlan][2186]cnmTimerStartTimer:(CNM INFO) In DoTimeOut, timer 00000000f7f35349 func kalPerMonHandler.cfi_jt [wlan_drv_gen4m_6983] 1000 ms timercount 0
+[16347.629613][T302186] [wlan][2186]wlanLinkQualityMonitor:(SW4 INFO) Link Quality: Tx(rate:1170, total:739241, retry:1994, fail:2504, RTS fail:748, ACK fail:1756), Rx(rate:20, total:8415, dup:124, error:41475), PER(0), Congestion(idle slot:968751246, diff:53408, AwakeDur:10149089)
+[16347.630212][T402187] [wlan][2187]wlanTxCmdDoneCb:(TX INFO) Add command: 0000000050672982, nicCmdEventQueryStaStatistics.cfi_jt [wlan_drv_gen4m_6983], cmd=0x85, seq=148
+[16347.630666][T402187] [wlan][2187]wlanTxCmdDoneCb:(TX INFO) Add command: 00000000048c9a1a, nicCmdEventQueryStatistics.cfi_jt [wlan_drv_gen4m_6983], cmd=0x82, seq=149
+[16347.630870][T402187] [wlan][2187]kalDumpMsduReportStats:(HAL INFO) TX_Delay D:[1:5:10:20]=[5:0:0:0:0] C:[10:20:50:80]=[5:0:0:0:0] M:[5:10:20:50]=[5:0:0:0:0] F:[10:20:50:80]=[0:0:0:0:0] Txfail:0
+[16347.630905][T402187] [wlan][2187]kalDumpHifStats:(HAL INFO) I[1389914 100] T[47313 47313 47310 / 655896 655896 655896 655896] R[1833676 / 420147] T_R[0 0 0 3 0]  R_R[0 0 0 0] Tok[0/4096] Rfb[4150/4150] txreg[474851] rxreg[1201636]
+[16347.631003][T502186] [wlan][2186]nicRxProcessEventPacket:(RX INFO) Not static config event: id=0x21, seq=148
+[16347.631474][T502186] [wlan][2186]nicGetPendingCmdInfo:(TX INFO) Get command: 0000000050672982, nicCmdEventQueryStaStatistics.cfi_jt [wlan_drv_gen4m_6983], cmd=0x85, seq=148
+[16347.631892][T502186] [wlan][2186]nicGetPendingCmdInfo:(TX INFO) Get command: 00000000048c9a1a, nicCmdEventQueryStatistics.cfi_jt [wlan_drv_gen4m_6983], cmd=0x82, seq=149
+[16347.692034][T402186] [wlan][wlan][2186]statsParseARPInfo:(RX INFO) <RX> Arp Req From IP: 192.***.***.254
+[16347.721345][T502186] [wlan][wlan][2186]statsParseARPInfo:(RX INFO) <RX> Arp Req From IP: 192.***.***.254
+[16347.885443][  T479] type=1400 audit(1787311476.607:38050): avc:  denied  { read } for  comm="Thread_3" name="unix" dev="proc" ino=4026532131 scontext=u:r:untrusted_app:s0:c59,c257,c512,c768 tcontext=u:object_r:proc_net:s0 tclass=file permissive=0 app=com.tencent.mobileqq
+[16348.189007][C505187] [name:spm&][SPM] system_bus wake up by  R12_SYSTIMER, timer_out = 617, r13 = 0x8000fac0, debug_flag = 0x10000030 0x3, r12 = 0x40000, r12_ext = 0x0, raw_sta = 0x0 0x0 0x0, idle_sta = 0x0, req_sta =  0x0 0x1f000000 0x1f5 0x202001a 0x0 0x1d000 0x0, cg_check_sta =0x1f5, isr = 0x0, rt_req_sta0 = 0x0 rt_req_sta1 = 0x0 rt_req_sta2 = 0xffffffff rt_req_sta3 = 0xffffffff dram_sw_con_3 = 0x0, raw_ext_sta = 0x208a55, wake_misc = 0x180030, pcm_flag = 0x2090067 0x2000000 0x2010067 0x2010067, req = 0x6360630,  clk_settle = 0x60fe, 
+[16348.653068][ T2186] [wlan][2186]kalPerMonUpdate:(SW4 INFO) <1024ms> Tput: 2024(0.001mbps) [140:2:120:2][0:0:0:0][0:0:0:0][0:0:0:0] Pending:0/4096 [0:0:0:0][0:0:0:0][0:0:0:0][0:0:0:0] Used:0/4096/1024 [0][0][0][0][0] LQ[739241:8422:55138] lv:0 th:5 fg:0x9 Mo:[0:0:0:0] TxDp[ST:BS:FO:QM:DP]:40:0:0:0:1290
+[16348.653121][ T2186] [wlan][2186]kalPerMonUpdate:(SW4 INFO) ndevdrp:[0:0:0:0][0:0:0:0][0:0:0:0][0:0:0:0] drv[RM,IL,RI,RT,RM,RW,RA,RB,DT,NS,IB,HS,LS,DD,ME,BD,NI,DR,TE,CE,DN,FE,DE,IE,TME]:1916717,0,1828575,1799090,0,1793348,701,442,5102,0,0,7,0,124,0,491,0,4480,0,0,5102,0,0,0,0.
+[16348.653513][ T2186] [wlan][2186]cnmTimerDoTimeOutCheck:(CNM INFO) timer timeout, timer 00000000f7f35349 func kalPerMonHandler.cfi_jt [wlan_drv_gen4m_6983]
+[16348.653539][ T2186] [wlan][2186]kalSetPerfReport:(SW4 INFO) Rate[4][0][0][0] RCPI[255][0][0][0]
+[16348.653555][ T2186] asicConnac2xFillCmdTxdInfo: 7 callbacks suppressed
+[16348.653564][ T2186] [wlan][wlan][2186]asicConnac2xFillCmdTxdInfo:(TX INFO) TX CMD: ID[0x7E] SEQ[150] SET[1] LEN[376]
+[16348.653849][ T2186] [wlan][2186]cnmTimerStartTimer:(CNM INFO) In DoTimeOut, timer 00000000f7f35349 func kalPerMonHandler.cfi_jt [wlan_drv_gen4m_6983] 1000 ms timercount 0
+[16348.653886][ T2186] [wlan][wlan][2186]asicConnac2xFillCmdTxdInfo:(TX INFO) TX CMD: ID[0x85] SEQ[151] SET[0] LEN[92]
+[16348.653902][ T2186] [wlan][wlan][2186]asicConnac2xFillCmdTxdInfo:(TX INFO) TX CMD: ID[0x82] SEQ[152] SET[0] LEN[248]
+[16348.653915][ T2186] [wlan][2186]wlanLinkQualityMonitor:(SW4 INFO) Link Quality: Tx(rate:1170, total:739241, retry:1995, fail:2505, RTS fail:748, ACK fail:1757), Rx(rate:65, total:8422, dup:124, error:41519), PER(0), Congestion(idle slot:968806384, diff:55138, AwakeDur:10150113)
+[16348.654466][T502187] [wlan][2187]wlanTxCmdDoneCb:(TX INFO) Add command: 00000000c56d224e, nicCmdEventQueryStaStatistics.cfi_jt [wlan_drv_gen4m_6983], cmd=0x85, seq=151
+[16348.654890][T502187] [wlan][2187]wlanTxCmdDoneCb:(TX INFO) Add command: 00000000b5c93fdf, nicCmdEventQueryStatistics.cfi_jt [wlan_drv_gen4m_6983], cmd=0x82, seq=152
+[16348.655171][T502187] [wlan][2187]kalDumpMsduReportStats:(HAL INFO) TX_Delay D:[1:5:10:20]=[2:0:0:0:0] C:[10:20:50:80]=[2:0:0:0:0] M:[5:10:20:50]=[2:0:0:0:0] F:[10:20:50:80]=[0:0:0:0:0] Txfail:0
+[16348.655215][T502187] [wlan][2187]kalDumpHifStats:(HAL INFO) I[1389922 100] T[47316 47316 47313 / 655898 655898 655898 655898] R[1833678 / 420151] T_R[0 0 0 3 0]  R_R[0 0 0 0] Tok[0/4096] Rfb[4150/4150] txreg[474853] rxreg[1201642]
+[16348.655499][T502186] [wlan][2186]nicRxProcessEventPacket:(RX INFO) Not static config event: id=0x21, seq=151
+[16348.655906][T502186] [wlan][2186]nicGetPendingCmdInfo:(TX INFO) Get command: 00000000c56d224e, nicCmdEventQueryStaStatistics.cfi_jt [wlan_drv_gen4m_6983], cmd=0x85, seq=151
+[16348.656322][T502186] [wlan][2186]nicGetPendingCmdInfo:(TX INFO) Get command: 00000000b5c93fdf, nicCmdEventQueryStatistics.cfi_jt [wlan_drv_gen4m_6983], cmd=0x82, seq=152
+[16348.692654][T502186] [wlan][wlan][2186]statsParseARPInfo:(RX INFO) <RX> Arp Req From IP: 192.***.***.254
+[16348.858270][T502186] [wlan][wlan][2186]statsParseARPInfo:(RX INFO) <RX> Arp Req From IP: 192.***.***.254
+[16349.018428][T502186] [wlan][wlan][2186]asicConnac2xFillCmdTxdInfo:(TX INFO) TX CMD: ID[0x84] SEQ[153] SET[0] LEN[72]
+[16349.019124][T602187] [wlan][2187]wlanTxCmdDoneCb:(TX INFO) Add command: 00000000d5f2ea6e, nicCmdEventQueryLinkStats.cfi_jt [wlan_drv_gen4m_6983], cmd=0x84, seq=153
+[16349.020760][T502186] [wlan][2186]nicGetPendingCmdInfo:(TX INFO) Get command: 00000000d5f2ea6e, nicCmdEventQueryLinkStats.cfi_jt [wlan_drv_gen4m_6983], cmd=0x84, seq=153
+[16349.025717][T402186] [wlan][wlan][2186]asicConnac2xFillCmdTxdInfo:(TX INFO) TX CMD: ID[0x81] SEQ[154] SET[0] LEN[64]
+[16349.026679][T502187] [wlan][2187]wlanTxCmdDoneCb:(TX INFO) Add command: 00000000b711671d, nicCmdEventQueryLinkSpeedEx.cfi_jt [wlan_drv_gen4m_6983], cmd=0x81, seq=154
+[16349.027777][T402186] [wlan][2186]nicUpdateLinkQuality:(RLM INFO) Rssi=-61, NewRssi=-61
+[16349.028255][T402186] [wlan][2186]nicGetPendingCmdInfo:(TX INFO) Get command: 00000000b711671d, nicCmdEventQueryLinkSpeedEx.cfi_jt [wlan_drv_gen4m_6983], cmd=0x81, seq=154
+[16349.028271][T402186] [wlan][2186]soc7_0_get_rx_rate_info:(SW4 ERROR) prStaRecOfAP is null
+[16349.032285][T501302] [wlan][1302]mtk_cfg80211_get_station:(REQ INFO) link speed=1444/1444, bw=0/0, rssi=-61, BSSID:[94:7f:**:**:**:39],TxFail=0, TxTimeOut=0, TxOK=9128, RxOK=10436, FcsErr=47
+[16349.681064][ T2186] [wlan][2186]kalPerMonUpdate:(SW4 INFO) <1028ms> Tput: 1504(0.001mbps) [74:1:120:2][0:0:0:0][0:0:0:0][0:0:0:0] Pending:0/4096 [0:0:0:0][0:0:0:0][0:0:0:0][0:0:0:0] Used:0/4096/1024 [0][0][0][0][0] LQ[739241:8424:53339] lv:0 th:5 fg:0x9 Mo:[0:0:0:0] TxDp[ST:BS:FO:QM:DP]:40:0:0:0:1290
+[16349.681109][ T2186] [wlan][2186]kalPerMonUpdate:(SW4 INFO) ndevdrp:[0:0:0:0][0:0:0:0][0:0:0:0][0:0:0:0] drv[RM,IL,RI,RT,RM,RW,RA,RB,DT,NS,IB,HS,LS,DD,ME,BD,NI,DR,TE,CE,DN,FE,DE,IE,TME]:1916723,0,1828577,1799090,0,1793348,701,442,5102,0,0,7,0,124,0,491,0,4480,0,0,5102,0,0,0,0.
+[16349.681733][T402186] [wlan][2186]cnmTimerDoTimeOutCheck:(CNM INFO) timer timeout, timer 00000000f7f35349 func kalPerMonHandler.cfi_jt [wlan_drv_gen4m_6983]
+[16349.681756][T402186] [wlan][2186]kalSetPerfReport:(SW4 INFO) Rate[4][0][0][0] RCPI[255][0][0][0]
+[16349.681779][T402186] [wlan][wlan][2186]asicConnac2xFillCmdTxdInfo:(TX INFO) TX CMD: ID[0x7E] SEQ[155] SET[1] LEN[376]
+[16349.682199][T402186] [wlan][2186]cnmTimerStartTimer:(CNM INFO) In DoTimeOut, timer 00000000f7f35349 func kalPerMonHandler.cfi_jt [wlan_drv_gen4m_6983] 1000 ms timercount 0
+[16349.682222][T402186] [wlan][wlan][2186]asicConnac2xFillCmdTxdInfo:(TX INFO) TX CMD: ID[0x85] SEQ[156] SET[0] LEN[92]
+[16349.682235][T402186] [wlan][wlan][2186]asicConnac2xFillCmdTxdInfo:(TX INFO) TX CMD: ID[0x82] SEQ[157] SET[0] LEN[248]
+[16349.682253][T402186] [wlan][2186]wlanLinkQualityMonitor:(SW4 INFO) Link Quality: Tx(rate:1170, total:739241, retry:1996, fail:2506, RTS fail:748, ACK fail:1758), Rx(rate:20, total:8424, dup:124, error:41566), PER(0), Congestion(idle slot:968859723, diff:53339, AwakeDur:10151138)
+[16349.682797][T602187] [wlan][2187]wlanTxCmdDoneCb:(TX INFO) Add command: 00000000b7f1dd9a, nicCmdEventQueryStaStatistics.cfi_jt [wlan_drv_gen4m_6983], cmd=0x85, seq=156
+[16349.683210][T602187] [wlan][2187]wlanTxCmdDoneCb:(TX INFO) Add command: 00000000cbf79eaa, nicCmdEventQueryStatistics.cfi_jt [wlan_drv_gen4m_6983], cmd=0x82, seq=157
+[16349.683467][T602187] [wlan][2187]kalDumpMsduReportStats:(HAL INFO) TX_Delay D:[1:5:10:20]=[1:0:0:0:0] C:[10:20:50:80]=[1:0:0:0:0] M:[5:10:20:50]=[1:0:0:0:0] F:[10:20:50:80]=[0:0:0:0:0] Txfail:0
+[16349.683503][T602187] [wlan][2187]kalDumpHifStats:(HAL INFO) I[1389933 100] T[47321 47321 47318 / 655899 655899 655899 655899] R[1833680 / 420156] T_R[0 0 0 3 0]  R_R[0 0 0 0] Tok[0/4096] Rfb[4150/4150] txreg[474854] rxreg[1201649]
+[16349.684280][T502186] [wlan][2186]nicRxProcessEventPacket:(RX INFO) Not static config event: id=0x21, seq=156
+[16349.684745][T502186] [wlan][2186]nicGetPendingCmdInfo:(TX INFO) Get command: 00000000b7f1dd9a, nicCmdEventQueryStaStatistics.cfi_jt [wlan_drv_gen4m_6983], cmd=0x85, seq=156
+[16349.685165][T502186] [wlan][2186]nicGetPendingCmdInfo:(TX INFO) Get command: 00000000cbf79eaa, nicCmdEventQueryStatistics.cfi_jt [wlan_drv_gen4m_6983], cmd=0x82, seq=157
+[16349.765470][T502186] [wlan][wlan][2186]statsParseARPInfo:(RX INFO) <RX> Arp Req From IP: 192.***.***.254
+[16349.861982][  T727] [ FTS ]  fts_enter_pointer_event_handler :  Event 0x13 - Press ID[0] type = 1
+[16349.864305][T600239] panel_restore_crc_level crc_level = 255
+[16349.864325][T600239] [DISP]mtk_ddic_dsi_send_cmd_queue +
+[16349.864377][T600239] [DISP]mtk_ddic_dsi_send_cmd_queue -
+[16349.865896][T300239] mtk_disp_tdshp_prepare
+[16349.866471][T300239] mtk_dmdp_aal_prepare
+[16349.867324][T701054] #@# cm_mgr_to_sspm_command(60) cmd 0x28, arg 0x1
+[16349.867597][T300239] mtk_disp_tdshp_prepare
+[16349.868059][T300239] mtk_dmdp_aal_prepare
+[16349.869110][T300239] [cmdq] cmdq_util_enable_disp_va
+[16349.869402][  T239] mtk_disp_tdshp_config, line: 411
+[16349.869412][  T239] mtk_disp_tdshp_start, line: 520
+[16349.869418][  T239] tdshp_en: 1, tdshp_limit: 20, tdshp_ylev_256: 56
+[16349.869453][  T239] mtk_disp_c3d_config, line: 946
+[16349.869460][  T239] mtk_disp_c3d_start, line: 963
+[16349.869972][  T239] [disp_aal]Cannot find LED node from dts
+[16349.869977][  T239] [disp_aal]get pwm cust info fail
+[16349.869982][  T239] [disp_aal]disp_aal_get_cust_led mode=0
+[16349.870569][  T239] [DISP]mtk_cm_config111
+[16349.870604][  T239] mtk_disp_tdshp_config, line: 411
+[16349.870610][  T239] mtk_disp_tdshp_start, line: 520
+[16349.870616][  T239] tdshp_en: 1, tdshp_limit: 20, tdshp_ylev_256: 56
+[16349.870645][  T239] mtk_disp_c3d_config, line: 946
+[16349.870652][  T239] mtk_disp_c3d_start, line: 963
+[16349.871619][T700239] [disp_aal]Cannot find LED node from dts
+[16349.871624][T700239] [disp_aal]get pwm cust info fail
+[16349.871626][T700239] [disp_aal]disp_aal_get_cust_led mode=0
+[16349.872164][T700239] [DISP]mtk_cm_config111
+[16349.872316][  T239] [DISP]mtk_dsc_config+ pad_num:0
+[16349.873105][T715500] [awinic_haptic]aw86927_vibrator_work_routine: effect_id = 3 state=1 activate_mode = 0 duration = 0
+[16349.873402][T15500] [awinic_haptic]aw86927_haptic_upload_lra write f0_calib_data to trim_lra = 0x00
+[16349.873913][T15500] [awinic_haptic]aw86927_haptic_stop enter
+[16349.874440][T15500] [awinic_haptic]aw86927_haptic_wait_enter_standby: entered standby!
+[16349.874446][T15500] [awinic_haptic]aw86927_haptic_set_wav_seq enter!
+[16349.874730][T15500] [awinic_haptic]aw86927_haptic_set_wav_seq enter!
+[16349.874848][T15500] [awinic_haptic]aw86927_haptic_set_wav_loop enter!
+[16349.875102][T15500] [awinic_haptic]aw86927_haptic_play_mode: enter ram mode
+[16349.875357][T15500] [awinic_haptic]aw86927_haptic_bst_mode_config enter!
+[16349.875363][T15500] [awinic_haptic]aw86927_haptic_bst_mode_config haptic bst mode = bst
+[16349.875870][T15500] [awinic_haptic]aw86927_haptic_effect_strength: aw86927->level =0x80
+[16349.942971][T715500] [awinic_haptic]aw86927_vibrator_work_routine: effect_id = 3 state=0 activate_mode = 0 duration = 0
+[16349.943120][T15500] [awinic_haptic]aw86927_haptic_upload_lra write f0_calib_data to trim_lra = 0x00
+[16349.943366][T15500] [awinic_haptic]aw86927_haptic_stop enter
+[16349.943654][T15500] [awinic_haptic]aw86927_haptic_wait_enter_standby: entered standby!
+[16349.949409][T702186] [wlan][wlan][2186]statsParseARPInfo:(RX INFO) <RX> Arp Req From IP: 192.***.***.254
+[16349.949552][C225259] [wlan][28587]statsParseARPInfo:(TX INFO) ARP RSP SRC MAC/IP[8e:82:**:**:**:d7]/[192.***.***.18], TAR MAC/IP[00:e2:**:**:**:5f]/[192.***.***.254], SeqNo: 68
+[16349.949619][T302186] [wlan][2186]wlanGetSpeIdx:(INIT INFO) SpeIdx:24,D:0,G=0,B=1,Bss=0
+[16349.952049][T702186] [wlan][wlan][2186]wlanPktTxDone:(TX INFO) TX DONE, Type[ARP] Tag[0xc7bf6500] WIDX:PID[7:75] Status[0], SeqNo: 68
+[16349.956241][  T727] [ FTS ]  fts_leave_pointer_event_handler :  Event 0x33 - release ID[0] type = 1
+[16349.956958][T701054] #@# cm_mgr_to_sspm_command(60) cmd 0x28, arg 0x0
+[16349.964654][T701048] xiaomi_touch_dev_open
+[16349.964669][T701048] xiaomi_touch_dev_ioctl cmd:0, touchId:0, mode:25, value:0
+[16349.964676][T701048] [ FTS ] fts_set_cur_value, mode:25,value:0
+[16349.964680][T701048] [ FTS ] fts_set_cur_value, don't support
+[16349.964708][T729219] [ FTS ] fts_update_touchmode_data: no update
+[16349.965254][  T479] type=1400 audit(1787311478.691:38051): avc:  denied  { rename } for  comm="Thread-18" name="msf_lifecycle_monitor.xml" dev="dm-55" ino=657452 scontext=u:r:untrusted_app:s0:c59,c257,c512,c768 tcontext=u:object_r:unlabeled:s0 tclass=file permissive=0 app=com.tencent.mobileqq
+[16350.022465][T300429] SELinux: avc:  denied  { find } for pid=28709 uid=10159 name=vendor.mediatek.hardware.mbrain.IMBrain/default scontext=u:r:platform_app:s0:c512,c768 tcontext=u:object_r:default_android_service:s0 tclass=service_manager permissive=0
+[16350.157016][ T1978] timesync boot 18346488921664 sched 16350156999845 android 08-21 11:24:38.886225
+[16350.177164][T300245] mtk_disp_tdshp_stop, line: 528
+[16350.177193][T300245] mtk_disp_c3d_stop, line: 982
+[16350.177223][T300245] mtk_disp_tdshp_stop, line: 528
+[16350.177230][T300245] mtk_disp_c3d_stop, line: 982
+[16350.179859][  T245] mtk_disp_tdshp_unprepare
+[16350.179932][  T245] mtk_disp_c3d_unprepare, line: 1021
+[16350.179943][  T245] mtk_dmdp_aal_unprepare
+[16350.180443][T600245] [mml][err]sys_unprepare fail to find task
+[16350.180476][T600245] [mml][err]sys_unprepare fail to find task
+[16350.180533][T600245] mtk_disp_tdshp_unprepare
+[16350.180612][T600245] mtk_disp_c3d_unprepare, line: 1021
+[16350.180625][T600245] mtk_dmdp_aal_unprepare
+[16350.180787][T600245] [mml][err]sys_unprepare fail to find task
+[16350.180799][T600245] [mml][err]sys_unprepare fail to find task
+[16350.220895][T200479] type=1400 audit(1787311478.943:38052): avc:  denied  { read } for  comm="cat" name="drivers" dev="proc" ino=4026531852 scontext=u:r:untrusted_app:s0:c59,c257,c512,c768 tcontext=u:object_r:proc_tty_drivers:s0 tclass=file permissive=0 app=com.tencent.mobileqq
+[16350.701364][T202186] [wlan][2186]kalPerMonUpdate:(SW4 INFO) <1021ms> Tput: 16000(0.015mbps) [1254:7:789:7][0:0:0:0][0:0:0:0][0:0:0:0] Pending:0/4096 [0:0:0:0][0:0:0:0][0:0:0:0][0:0:0:0] Used:0/4096/1024 [0][0][0][0][0] LQ[739241:8426:53515] lv:0 th:5 fg:0x9 Mo:[0:0:0:0] TxDp[ST:BS:FO:QM:DP]:40:0:0:0:1290
+[16350.701408][T202186] [wlan][2186]kalPerMonUpdate:(SW4 INFO) ndevdrp:[0:0:0:0][0:0:0:0][0:0:0:0][0:0:0:0] drv[RM,IL,RI,RT,RM,RW,RA,RB,DT,NS,IB,HS,LS,DD,ME,BD,NI,DR,TE,CE,DN,FE,DE,IE,TME]:1916733,0,1828584,1799096,0,1793354,701,442,5102,0,0,7,0,124,0,491,0,4480,0,0,5102,0,0,0,0.
+[16350.701829][T202186] [wlan][2186]cnmTimerDoTimeOutCheck:(CNM INFO) timer timeout, timer 00000000f7f35349 func kalPerMonHandler.cfi_jt [wlan_drv_gen4m_6983]
+[16350.701857][T202186] [wlan][2186]kalSetPerfReport:(SW4 INFO) Rate[52][0][0][0] RCPI[255][0][0][0]
+[16350.701878][T202186] [wlan][wlan][2186]asicConnac2xFillCmdTxdInfo:(TX INFO) TX CMD: ID[0x7E] SEQ[158] SET[1] LEN[376]
+[16350.702165][T202186] [wlan][2186]cnmTimerStartTimer:(CNM INFO) In DoTimeOut, timer 00000000f7f35349 func kalPerMonHandler.cfi_jt [wlan_drv_gen4m_6983] 1000 ms timercount 0
+[16350.702202][T202186] [wlan][wlan][2186]asicConnac2xFillCmdTxdInfo:(TX INFO) TX CMD: ID[0x85] SEQ[159] SET[0] LEN[92]
+[16350.702222][T202186] [wlan][2186]wlanLinkQualityMonitor:(SW4 INFO) Link Quality: Tx(rate:1170, total:739241, retry:1997, fail:2508, RTS fail:749, ACK fail:1759), Rx(rate:20, total:8426, dup:124, error:41611), PER(0), Congestion(idle slot:968913238, diff:53515, AwakeDur:10152168)
+[16350.703099][T602187] [wlan][2187]wlanTxCmdDoneCb:(TX INFO) Add command: 00000000daeca4d8, nicCmdEventQueryStaStatistics.cfi_jt [wlan_drv_gen4m_6983], cmd=0x85, seq=159
+[16350.703531][T602187] [wlan][2187]wlanTxCmdDoneCb:(TX INFO) Add command: 00000000340e7be9, nicCmdEventQueryStatistics.cfi_jt [wlan_drv_gen4m_6983], cmd=0x82, seq=160
+[16350.703873][T602187] [wlan][2187]kalDumpMsduReportStats:(HAL INFO) TX_Delay D:[1:5:10:20]=[7:0:0:0:0] C:[10:20:50:80]=[7:0:0:0:0] M:[5:10:20:50]=[7:0:0:0:0] F:[10:20:50:80]=[0:0:0:0:0] Txfail:0
+[16350.703919][T602187] [wlan][2187]kalDumpHifStats:(HAL INFO) I[1389957 100] T[47324 47324 47321 / 655906 655906 655906 655906] R[1833687 / 420166] T_R[0 0 0 3 0]  R_R[0 0 0 0] Tok[0/4096] Rfb[4150/4150] txreg[474861] rxreg[1201665]
+[16350.704184][T502186] [wlan][2186]nicRxProcessEventPacket:(RX INFO) Not static config event: id=0x21, seq=159
+[16350.704635][T502186] [wlan][2186]nicGetPendingCmdInfo:(TX INFO) Get command: 00000000daeca4d8, nicCmdEventQueryStaStatistics.cfi_jt [wlan_drv_gen4m_6983], cmd=0x85, seq=159
+[16350.705068][T502186] [wlan][2186]nicGetPendingCmdInfo:(TX INFO) Get command: 00000000340e7be9, nicCmdEventQueryStatistics.cfi_jt [wlan_drv_gen4m_6983], cmd=0x82, seq=160
+[16350.759820][T402186] [wlan][wlan][2186]statsParseARPInfo:(RX INFO) <RX> Arp Req From IP: 192.***.***.254
+[16351.213099][T201522] panel_restore_crc_level crc_level = 255
+[16351.213117][T201522] [DISP]mtk_ddic_dsi_send_cmd_queue +
+[16351.213149][T201522] [DISP]mtk_ddic_dsi_send_cmd_queue -
+[16351.214423][ T1522] mtk_disp_tdshp_prepare
+[16351.214909][ T1522] mtk_dmdp_aal_prepare
+[16351.215705][ T1522] mtk_disp_tdshp_prepare
+[16351.216143][ T1522] mtk_dmdp_aal_prepare
+[16351.216924][ T1522] [cmdq] cmdq_util_enable_disp_va
+[16351.217317][ T1522] mtk_disp_tdshp_config, line: 411
+[16351.217328][ T1522] mtk_disp_tdshp_start, line: 520
+[16351.217336][ T1522] tdshp_en: 1, tdshp_limit: 20, tdshp_ylev_256: 56
+[16351.217404][ T1522] mtk_disp_c3d_config, line: 946
+[16351.217413][ T1522] mtk_disp_c3d_start, line: 963
+[16351.218330][ T1522] [disp_aal]Cannot find LED node from dts
+[16351.218338][ T1522] [disp_aal]get pwm cust info fail
+[16351.218345][ T1522] [disp_aal]disp_aal_get_cust_led mode=0
+[16351.219037][ T1522] [DISP]mtk_cm_config111
+[16351.219114][ T1522] mtk_disp_tdshp_config, line: 411
+[16351.219122][ T1522] mtk_disp_tdshp_start, line: 520
+[16351.219128][ T1522] tdshp_en: 1, tdshp_limit: 20, tdshp_ylev_256: 56
+[16351.219185][ T1522] mtk_disp_c3d_config, line: 946
+[16351.219194][ T1522] mtk_disp_c3d_start, line: 963
+[16351.219675][ T1522] [disp_aal]Cannot find LED node from dts
+[16351.219681][ T1522] [disp_aal]get pwm cust info fail
+[16351.219686][ T1522] [disp_aal]disp_aal_get_cust_led mode=0
+[16351.220326][ T1522] [DISP]mtk_cm_config111
+[16351.220558][T101522] [DISP]mtk_dsc_config+ pad_num:0
+[16351.365420][T28687] Unable to handle kernel NULL pointer dereference at virtual address 0000000000000004
+[16351.365445][T28687] Mem abort info:
+[16351.365450][T28687]   ESR = 0x96000005
+[16351.365457][T28687]   EC = 0x25: DABT (current EL), IL = 32 bits
+[16351.365462][T28687]   SET = 0, FnV = 0
+[16351.365467][T28687]   EA = 0, S1PTW = 0
+[16351.365471][T28687] Data abort info:
+[16351.365477][T28687]   ISV = 0, ISS = 0x00000005
+[16351.365482][T28687]   CM = 0, WnR = 0
+[16351.365488][T28687] user pgtable: 4k pages, 39-bit VAs, pgdp=0000000148003000
+[16351.365493][T28687] [0000000000000004] pgd=0000000000000000, p4d=0000000000000000, pud=0000000000000000
+[16351.365509][T28687] Internal error: Oops: 96000005 [#1] PREEMPT SMP
+[16351.398569][T28687] Kernel Offset: 0x219a800000 from 0xffffffc008000000
+[16351.398585][T28687] PHYS_OFFSET: 0x40000000
+[16351.398596][T28687] pstate: a2400005 (NzCv daif +PAN -UAO)
+[16351.398610][T28687] pc : [0xffffffe1a30c4d88] selinux_task_to_inode+0x58/0x230
+[16351.398619][T28687] lr : [0xffffffe1a2e59bdc] pid_update_inode+0x188/0x23c
+[16351.398625][T28687] sp : ffffffc04d26ba00
+[16351.398630][T28687] x29: ffffffc04d26ba00 x28: 0000000000000041
+[16351.398635][T28687] x27: ffffffe1a4006ff0 x26: 0000000000000030
+[16351.398640][T28687] x25: 0000000000000040 x24: 0000000000000000
+[16351.398646][T28687] x23: ffffffe1a4009750 x22: ffffffe1a4af0520
+[16351.398651][T28687] x21: ffffffe1a4009750 x20: ffffff825df5f768
+[16351.398656][T28687] x19: ffffff827f581280 x18: ffffffc03df67068
+[16351.398662][T28687] x17: 0000000000000002 x16: 0000000000000028
+[16351.398666][T28687] x15: ffffffffffffffff x14: 0000000000000005
+[16351.398671][T28687] x13: ffffffe1a4007020 x12: ffffff8046db7e18
+[16351.398676][T28687] x11: ffffff809dd95908 x10: 0000000000000000
+[16351.398681][T28687] x9 : 0000000000000001 x8 : 0000000000000000
+[16351.398686][T28687] x7 : 0000003738363832 x6 : 0000003738363832
+[16351.398691][T28687] x5 : 00000000fffffffd x4 : ffffff8157df1080
+[16351.398696][T28687] x3 : 0000000000000000 x2 : 0000036900000000
+[16351.398701][T28687] x1 : ffffff825df5f768 x0 : ffffff827f581280
+[16351.398707][T28687] PC: 0xffffffe1a30c4d88:
+[16351.398715][T28687] 4d00: f85f8e5e d50323bf d65f03c0 d503249f 52800213 b5fffb43 17ffffd7 aa0803e0
+[16351.398721][T28687] 4d20: 97e5e976 17ffffec f8bfc169 b8bfc129 d503233f f800865e a9bd7bfd a90157f6
+[16351.398727][T28687] 4d40: a9024ff4 910003fd d5384113 b9444a68 f000d14a 9119e14a f9401c29 11000508
+[16351.398733][T28687] 4d60: b980094b b9044a68 911de008 f8bfc108 f9403d08 b980014a 8b0b012b f100013f
+[16351.398739][T28687] 4d80: b9444a69 8b0a0108 b9400516 aa0103f4 9a8b03f5 71000528 b9044a68 54000081
+[16351.398745][T28687] 4da0: 91113268 b8bfc108 35000a88 91006268 b8bfc108 11000508 b9001a68 910092a8
+[16351.398751][T28687] 4dc0: d503201f d503201f aa1f03e1 aa0803e0 52800022 2a0103e9 88e97d02 2a0903e0
+[16351.398757][T28687] 4de0: aa0003e1 35000a41 79400288 12140d08 51400508 530c7d08 71002d1f 54000108
+[16351.398763][T28687] 4e00: f000c289 91180129 1000000a b8a8792b 8b0b014a 528001a8 d61f0140 d503249f
+[16351.398768][T28687] LR: 0xffffffe1a2e59bdc:
+[16351.398774][T28687] 9b50: 4a08002a 3500006a 880a7ec9 35ffff8a 34fffd21 aa1603e0 97ee3e08 f9428e68
+[16351.398780][T28687] 9b70: b5fffce8 2a1f03f8 2a1f03f7 2a1f03e8 089ffec8 910062a8 f8bfc109 f1000529
+[16351.398786][T28687] 9b90: b9001aa9 54000480 f8bfc109 b4000449 79400288 2900e297 12147508 79000288
+[16351.398792][T28687] 9bb0: d000e4a8 f941b916 b4000296 90008d97 911d42f7 f9400ed5 eb1702bf 540000e1
+[16351.398798][T28687] 9bd0: aa1303e0 aa1403e1 d63f02a0 f94002d6 b5ffff36 14000009 d2995b80 f2ada2a0
+[16351.398804][T28687] 9bf0: f2d63b60 f2ea3c00 aa1503e1 aa1f03e2 97f5d33f 17fffff3 a9434ff4 a94257f6
+[16351.398809][T28687] 9c10: a9415ff8 a8c47bfd f85f8e5e d50323bf d65f03c0 b8bfc108 35fffbc8 d53b4228
+[16351.398815][T28687] 9c30: 12190109 35fffb69 910062b6 b8bfc2c8 11000508 b9001aa8 52800020 944ea094
+[16351.398821][T28687] 9c50: b8bfc2c8 51000508 b9001aa8 f94002a8 370ffec8 17ffffcf f8bfc128 b8bfc108
+[16351.398826][T28687] SP: 0xffffffc04d26ba00:
+[16351.398832][T28687] b980: 00000030 00000000 a4006ff0 ffffffe1 00000041 00000000 4d26ba00 ffffffc0
+[16351.398838][T28687] b9a0: a2e59bdc ffffffe1 4d26ba00 ffffffc0 a30c4d88 ffffffe1 a2400005 00000000
+[16351.398844][T28687] b9c0: 00000040 00000000 0000003f 00000000 ffffffff 0000007f 4d26ba30 ffffffc0
+[16351.398850][T28687] b9e0: 4d26ba00 ffffffc0 a30c4d88 ffffffe1 ffffffd8 00000000 00000000 00000000
+[16351.398856][T28687] ba00: 4d26ba30 ffffffc0 a2e59bdc ffffffe1 a4af0520 ffffffe1 a4009750 ffffffe1
+[16351.398862][T28687] ba20: 5df5f768 ffffff82 7f581280 ffffff82 4d26ba70 ffffffc0 a2e5a528 ffffffe1
+[16351.398868][T28687] ba40: a40075a0 ffffffe1 00000051 00000000 fffffff6 00000000 a40075a8 ffffffe1
+[16351.398873][T28687] ba60: 5df5f768 ffffff82 7f581280 ffffff82 4d26baa0 ffffffc0 a2d5c8dc ffffffe1
+[16351.398879][T28687] X0: 0xffffff827f581280:
+[16351.398885][T28687] 1200: 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000
+[16351.398891][T28687] 1220: 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000
+[16351.398897][T28687] 1240: 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000
+[16351.398902][T28687] 1260: 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000
+[16351.398908][T28687] 1280: 04000020 00000000 ffffffff ffffffff 42476000 00000000 00000001 00000001
+[16351.398914][T28687] 12a0: 3df67000 ffffffc0 3df67000 ffffffc0 00000000 00000000 4d268000 ffffffc0
+[16351.398920][T28687] 12c0: 00000003 00400040 00000000 00000001 00000000 00000000 00000030 00000000
+[16351.398926][T28687] 12e0: 00000000 00000001 003d3afb 00000001 edebb780 ffffff80 00000000 00000000
+[16351.398930][T28687] X1: 0xffffff825df5f768:
+[16351.398936][T28687] f6e0: 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000
+[16351.398942][T28687] f700: 00000000 00000000 00000000 00000000 00000000 00000000 aa0a78b6 67b28ac1
+[16351.398948][T28687] f720: 5e3fe500 ffffff80 00000000 00000000 00000000 00000000 00000000 00000000
+[16351.398954][T28687] f740: 00000000 00000000 00000000 00000000 00000000 00000000 5e3fe530 ffffff80
+[16351.398960][T28687] f760: 00000000 00000000 0002416d 00000000 00000000 00000008 ffffffff ffffffff
+[16351.398966][T28687] f780: ffffffff ffffffff a4960500 ffffffe1 c26a2000 ffffff80 5df5f8f8 ffffff82
+[16351.398972][T28687] f7a0: 9dd958f8 ffffff80 003e1f19 00000000 00000009 00000000 00000000 00000000
+[16351.398978][T28687] f7c0: 6a883572 00000000 3b55acae 00000000 6a883572 00000000 3b55acae 00000000
+[16351.398984][T28687] f7e0: 6a883572 00000000 3b55acae 00000000 00000000 000a0000 00000000 00000000
+[16351.398989][T28687] X4: 0xffffff8157df1080:
+[16351.398995][T28687] 1000: 00000000 00002008 00000000 00000000 ffff0000 0000ffff 00000000 00000000
+[16351.399001][T28687] 1020: 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000
+[16351.399007][T28687] 1040: 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000
+[16351.399013][T28687] 1060: 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000
+[16351.399019][T28687] 1080: 38363832 00000037 00000000 00000000 00000000 00000000 00000000 00000000
+[16351.399024][T28687] 10a0: 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000
+[16351.399030][T28687] 10c0: 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000
+[16351.399036][T28687] 10e0: 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000
+[16351.399042][T28687] X11: 0xffffff809dd95908:
+[16351.399049][T28687] 5880: 00010018 00000000 00000000 00000000 00000000 00000000 5df5dee8 ffffff82
+[16351.399054][T28687] 58a0: 9dd958a0 ffffff80 9dd958a0 ffffff80 000009d0 000009d0 00010008 00000000
+[16351.399061][T28687] 58c0: f2d87180 ffffff80 00000000 00000000 2022e6f0 ffffff81 25e128d3 b7f12ef2
+[16351.399067][T28687] 58e0: 9dd958d8 ffffff80 00000927 00000927 0001000e 00000000 00000000 00000000
+[16351.399073][T28687] 5900: 00000000 00000000 5df5f768 ffffff82 9dd95910 ffffff80 9dd95910 ffffff80
+[16351.399078][T28687] 5920: 000009d0 000009d0 00010008 00000000 00000000 00000000 00000000 00000000
+[16351.399084][T28687] 5940: 46f1df80 ffffff80 9dd95948 ffffff80 9dd95948 ffffff80 000009d0 000004af
+[16351.399090][T28687] 5960: 00010007 00000000 00000000 00000000 00000000 00000000 5df5e508 ffffff82
+[16351.399096][T28687] 5980: 9dd95980 ffffff80 9dd95980 ffffff80 000009d4 000009d4 00010008 00000000
+[16351.399101][T28687] X12: 0xffffff8046db7e18:
+[16351.399107][T28687] 7d90: 00000000 00000000 00000000 00000000 a4959480 ffffffe1 dac7c000 ffffff80
+[16351.399113][T28687] 7db0: 00000000 00000000 00000000 00000000 3fbfd8e0 ffffff81 46db6f20 ffffff80
+[16351.399119][T28687] 7dd0: 46db6bf0 ffffff80 68db1d10 ffffff80 46db7de0 ffffff80 46db7de0 ffffff80
+[16351.399125][T28687] 7df0: 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000
+[16351.399131][T28687] 7e10: 0020000c 00000002 00000000 00000000 d63f7680 ffffff82 c5ae4680 ffffff80
+[16351.399137][T28687] 7e30: 3ff680f3 00000005 46db7e48 ffffff80 5df5f768 ffffff82 38363832 00000037
+[16351.399143][T28687] 7e50: 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000002
+[16351.399149][T28687] 7e70: a495de40 ffffffe1 c26a2000 ffffff80 00000000 00000000 00000000 00000000
+[16351.399154][T28687] 7e90: 46db7e90 ffffff80 46db7e90 ffffff80 d1ddf820 ffffff80 b2bb5d00 ffffff80
+[16351.399159][T28687] X13: 0xffffffe1a4007020:
+[16351.399165][T28687] 6fa0: d503245f 17bd8100 d503245f 17bd8164 d503245f 17bd8181 d503245f 17bd819a
+[16351.399172][T28687] 6fc0: d503245f 17bd7fb0 d503245f 17bd807e d503245f 17bd814e d503245f 17bd8166
+[16351.399178][T28687] 6fe0: d503245f 17bd8181 d503245f 17bd81a4 d503245f 17b6753c d503245f 17bdab60
+[16351.399183][T28687] 7000: d503245f 17bdac0e d503245f 17bdb84a d503245f 17bdc87a d503245f 17bdc953
+[16351.399189][T28687] 7020: d503245f 17b6754f d503245f 17b9af7b d503245f 17bdab76 d503245f 17bdac3a
+[16351.399195][T28687] 7040: d503245f 17bdb882 d503245f 17bdc8c9 d503245f 17bdc993 d503245f 17be01d2
+[16351.399201][T28687] 7060: d503245f 17be029b d503245f 17be032c d503245f 17be0336 d503245f 17be03d5
+[16351.399207][T28687] 7080: d503245f 17be03b3 d503245f 17be0507 d503245f 17be0525 d503245f 17be0543
+[16351.399213][T28687] X18: 0xffffffc03df67068:
+[16351.399233][T28687] 7000: a28128b8 ffffffe1 a3f4e550 ffffffe1 a3f4e5dc ffffffe1 a2895a60 ffffffe1
+[16351.399240][T28687] 7020: a2d3c0fc ffffffe1 a2d3bde8 ffffffe1 a2d6357c ffffffe1 a2d636d8 ffffffe1
+[16351.399247][T28687] 7040: a2d5b50c ffffffe1 a2d5bff0 ffffffe1 a2d5c8dc ffffffe1 a2e5a528 ffffffe1
+[16351.399253][T28687] 7060: a2e59bdc ffffffe1 a281248c ffffffe1 a3f4e160 ffffffe1 a3f4e1d4 ffffffe1
+[16351.399259][T28687] 7080: a28aad20 ffffffe1 a4211d34 ffffffe1 a4211e04 ffffffe1 a28ab954 ffffffe1
+[16351.399265][T28687] 70a0: a28aba24 ffffffe1 a2888380 ffffffe1 a07f6034 ffffffe1 a07f5aa4 ffffffe1
+[16351.399270][T28687] 70c0: a07f989c ffffffe1 a07f9aec ffffffe1 a29f7180 ffffffe1 a2a0017c ffffffe1
+[16351.399277][T28687] 70e0: a29f84d4 ffffffe1 a29f98f8 ffffffe1 a3085448 ffffffe1 a3087dfc ffffffe1
+[16351.399281][T28687] X19: 0xffffff827f581280:
+[16351.399287][T28687] 1200: 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000
+[16351.399292][T28687] 1220: 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000
+[16351.399298][T28687] 1240: 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000
+[16351.399304][T28687] 1260: 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000
+[16351.399310][T28687] 1280: 04000020 00000000 ffffffff ffffffff 42476000 00000000 00000001 00000001
+[16351.399315][T28687] 12a0: 3df67000 ffffffc0 3df67000 ffffffc0 00000000 00000000 4d268000 ffffffc0
+[16351.399321][T28687] 12c0: 00000003 00400040 00000000 00000001 00000000 00000000 00000030 00000000
+[16351.399327][T28687] 12e0: 00000000 00000001 003d3afb 00000001 edebb780 ffffff80 00000000 00000000
+[16351.399332][T28687] X20: 0xffffff825df5f768:
+[16351.399338][T28687] f6e0: 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000
+[16351.399343][T28687] f700: 00000000 00000000 00000000 00000000 00000000 00000000 aa0a78b6 67b28ac1
+[16351.399349][T28687] f720: 5e3fe500 ffffff80 00000000 00000000 00000000 00000000 00000000 00000000
+[16351.399355][T28687] f740: 00000000 00000000 00000000 00000000 00000000 00000000 5e3fe530 ffffff80
+[16351.399361][T28687] f760: 00000000 00000000 0002416d 00000000 00000000 00000008 ffffffff ffffffff
+[16351.399366][T28687] f780: ffffffff ffffffff a4960500 ffffffe1 c26a2000 ffffff80 5df5f8f8 ffffff82
+[16351.399372][T28687] f7a0: 9dd958f8 ffffff80 003e1f19 00000000 00000009 00000000 00000000 00000000
+[16351.399378][T28687] f7c0: 6a883572 00000000 3b55acae 00000000 6a883572 00000000 3b55acae 00000000
+[16351.399384][T28687] f7e0: 6a883572 00000000 3b55acae 00000000 00000000 000a0000 00000000 00000000
+[16351.399389][T28687] X21: 0xffffffe1a4009750:
+[16351.399395][T28687] 96d0: d503245f 17c2ebbc d503245f 17c2ec67 d503245f 17c2ec82 d503245f 17a5cb80
+[16351.399401][T28687] 96f0: d503245f 17a5ceba d503245f 17a642fa d503245f 17c28ea1 d503245f 17c2925a
+[16351.399407][T28687] 9710: d503245f 17c2ce03 d503245f 17c2eb4e d503245f 17c2eb7a d503245f 17c2ec25
+[16351.399413][T28687] 9730: d503245f 17c2ecaa d503245f 17c2ecd6 d503245f 17c2ed02 d503245f 17c2ed2e
+[16351.399419][T28687] 9750: d503245f 17c2ed77 d503245f 17c2ee01 d503245f 17c2ee35 d503245f 17c2eeb4
+[16351.399424][T28687] 9770: d503245f 17c2ef05 d503245f 17c2efca d503245f 17c2ee36 d503245f 17c2ee5f
+[16351.399430][T28687] 9790: d503245f 17c2ef49 d503245f 17c2ef72 d503245f 17c2efee d503245f 17c2f017
+[16351.399436][T28687] 97b0: d503245f 17c2f06b d503245f 17b5ac9a d503245f 17b5bcc4 d503245f 17b5bd62
+[16351.399441][T28687] X22: 0xffffffe1a4af0520:
+[16351.399447][T28687] 04a0: a48855cb ffffffe1 00000000 00000000 a4aef350 ffffffe1 a4aef350 ffffffe1
+[16351.399453][T28687] 04c0: a4009738 ffffffe1 a48855cb ffffffe1 00000000 00000000 a4aef358 ffffffe1
+[16351.399459][T28687] 04e0: a4aef358 ffffffe1 a4009740 ffffffe1 a48855cb ffffffe1 00000000 00000000
+[16351.399465][T28687] 0500: a4aef360 ffffffe1 a4aef360 ffffffe1 a4009748 ffffffe1 a48855cb ffffffe1
+[16351.399471][T28687] 0520: 00000000 00000000 a4aef370 ffffffe1 a4aef370 ffffffe1 a4009750 ffffffe1
+[16351.399477][T28687] 0540: a48855cb ffffffe1 00000000 00000000 a4aef378 ffffffe1 a4aef378 ffffffe1
+[16351.399483][T28687] 0560: a4009758 ffffffe1 a48855cb ffffffe1 00000000 00000000 a4aef380 ffffffe1
+[16351.399489][T28687] 0580: a4aef380 ffffffe1 a4009760 ffffffe1 a48855cb ffffffe1 00000000 00000000
+[16351.399493][T28687] X23: 0xffffffe1a4009750:
+[16351.399499][T28687] 96d0: d503245f 17c2ebbc d503245f 17c2ec67 d503245f 17c2ec82 d503245f 17a5cb80
+[16351.399505][T28687] 96f0: d503245f 17a5ceba d503245f 17a642fa d503245f 17c28ea1 d503245f 17c2925a
+[16351.399511][T28687] 9710: d503245f 17c2ce03 d503245f 17c2eb4e d503245f 17c2eb7a d503245f 17c2ec25
+[16351.399517][T28687] 9730: d503245f 17c2ecaa d503245f 17c2ecd6 d503245f 17c2ed02 d503245f 17c2ed2e
+[16351.399523][T28687] 9750: d503245f 17c2ed77 d503245f 17c2ee01 d503245f 17c2ee35 d503245f 17c2eeb4
+[16351.399529][T28687] 9770: d503245f 17c2ef05 d503245f 17c2efca d503245f 17c2ee36 d503245f 17c2ee5f
+[16351.399534][T28687] 9790: d503245f 17c2ef49 d503245f 17c2ef72 d503245f 17c2efee d503245f 17c2f017
+[16351.399540][T28687] 97b0: d503245f 17c2f06b d503245f 17b5ac9a d503245f 17b5bcc4 d503245f 17b5bd62
+[16351.399546][T28687] X27: 0xffffffe1a4006ff0:
+[16351.399552][T28687] 6f70: d503245f 17bd7f04 d503245f 17bd80f3 d503245f 17bd7f37 d503245f 17bd8111
+[16351.399558][T28687] 6f90: d503245f 17bd7f12 d503245f 17bd801c d503245f 17bd8100 d503245f 17bd8164
+[16351.399564][T28687] 6fb0: d503245f 17bd8181 d503245f 17bd819a d503245f 17bd7fb0 d503245f 17bd807e
+[16351.399570][T28687] 6fd0: d503245f 17bd814e d503245f 17bd8166 d503245f 17bd8181 d503245f 17bd81a4
+[16351.399575][T28687] 6ff0: d503245f 17b6753c d503245f 17bdab60 d503245f 17bdac0e d503245f 17bdb84a
+[16351.399581][T28687] 7010: d503245f 17bdc87a d503245f 17bdc953 d503245f 17b6754f d503245f 17b9af7b
+[16351.399588][T28687] 7030: d503245f 17bdab76 d503245f 17bdac3a d503245f 17bdb882 d503245f 17bdc8c9
+[16351.399594][T28687] 7050: d503245f 17bdc993 d503245f 17be01d2 d503245f 17be029b d503245f 17be032c
+[16351.399598][T28687] X29: 0xffffffc04d26ba00:
+[16351.399605][T28687] b980: 00000030 00000000 a4006ff0 ffffffe1 00000041 00000000 4d26ba00 ffffffc0
+[16351.399610][T28687] b9a0: a2e59bdc ffffffe1 4d26ba00 ffffffc0 a30c4d88 ffffffe1 a2400005 00000000
+[16351.399616][T28687] b9c0: 00000040 00000000 0000003f 00000000 ffffffff 0000007f 4d26ba30 ffffffc0
+[16351.399622][T28687] b9e0: 4d26ba00 ffffffc0 a30c4d88 ffffffe1 ffffffd8 00000000 00000000 00000000
+[16351.399628][T28687] ba00: 4d26ba30 ffffffc0 a2e59bdc ffffffe1 a4af0520 ffffffe1 a4009750 ffffffe1
+[16351.399634][T28687] ba20: 5df5f768 ffffff82 7f581280 ffffff82 4d26ba70 ffffffc0 a2e5a528 ffffffe1
+[16351.399640][T28687] ba40: a40075a0 ffffffe1 00000051 00000000 fffffff6 00000000 a40075a8 ffffffe1
+[16351.399646][T28687] ba60: 5df5f768 ffffff82 7f581280 ffffff82 4d26baa0 ffffffc0 a2d5c8dc ffffffe1
+[16351.399650][T28687] 
+[16351.399661][T28687] CPU: 0 PID: 28687 Comm: sleep Tainted: P S      WC O      5.10.209-android12-9-00019-g4ea09a298bb4-ab12292661 #1
+[16351.399666][T28687] Hardware name: MT6983Z/CZA (DT)
+[16351.399673][T28687] Call trace:
+[16351.399683][T28687]  dump_backtrace.cfi_jt+0x0/0x8
+[16351.399690][T28687]  dump_stack_lvl+0xdc/0x138
+[16351.399696][T28687]  dump_stack+0x1c/0x2c
+[16351.399736][T28687]  mrdump_common_die+0x368/0x4e8 [mrdump]
+[16351.399769][T28687]  ipanic_die+0x24/0x38 [mrdump]
+[16351.399778][T28687]  die+0x358/0x680
+[16351.399786][T28687]  die_kernel_fault+0x84/0x94
+[16351.399791][T28687]  __do_kernel_fault+0x240/0x28c
+[16351.399799][T28687]  do_page_fault+0xb4/0x858
+[16351.399805][T28687]  do_translation_fault+0x48/0x64
+[16351.399810][T28687]  do_mem_abort+0x6c/0x164
+[16351.399816][T28687]  el1_abort+0x44/0x68
+[16351.399821][T28687]  el1_sync_handler+0x58/0x88
+[16351.399828][T28687]  el1_sync+0x8c/0x140
+[16351.399834][T28687]  selinux_task_to_inode+0x58/0x230
+[16351.399839][T28687]  pid_update_inode+0x188/0x23c
+[16351.399845][T28687]  pid_revalidate+0x3c/0xec
+[16351.399852][T28687]  lookup_fast+0x88/0x238
+[16351.399857][T28687]  walk_component+0x54/0x268
+[16351.399862][T28687]  link_path_walk+0x248/0x378
+[16351.399868][T28687]  path_openat+0xac/0x10ec
+[16351.399874][T28687]  do_filp_open+0xb4/0x164
+[16351.399881][T28687]  do_sys_openat2+0xa8/0x1dc
+[16351.399886][T28687]  __arm64_sys_openat+0x74/0xa0
+[16351.399893][T28687]  el0_svc_common+0xd4/0x270
+[16351.399898][T28687]  el0_svc+0x28/0x98
+[16351.399904][T28687]  el0_sync_handler+0x8c/0xf0
+[16351.399909][T28687]  el0_sync+0x1b8/0x1c0
+
+Boot info:
+Last boot reason: kernel_panic
+

@@ -79,7 +79,8 @@ rpush(){ local l="$1" r="$2" out i
 # ---------- 2. 部署 mt61 (SHA 机器校验) ----------
 say "第2步: 部署 mt61 preload.so 并校验 SHA256"
 [ -f "$WORK/bin/mt61/preload.so" ] || { say "!! 仓库里没有 bin/mt61/preload.so"; exit 3; }
-SHA_EXP=$(grep -o '[0-9a-f]\{64\}' "$WORK/bin/mt61/BUILD_INFO.txt" 2>/dev/null | head -1)
+SHA_EXP=$(grep -a "^SHA256 preload.so:" "$WORK/bin/mt61/BUILD_INFO.txt" 2>/dev/null | head -1 | awk '{print $3}')
+[ -n "$SHA_EXP" ] || SHA_EXP=$(grep -o '[0-9a-f]\{64\}' "$WORK/bin/mt61/BUILD_INFO.txt" 2>/dev/null | head -1)
 rsh "rm -f /data/local/tmp/preload.new" 20 >/dev/null
 rpush "$WORK/bin/mt61/preload.so" "/data/local/tmp/preload.new" >/dev/null
 rsh "mv -f /data/local/tmp/preload.new /data/local/tmp/preload.so; chmod 644 /data/local/tmp/preload.so" 30 >/dev/null

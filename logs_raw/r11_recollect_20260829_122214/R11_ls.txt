@@ -1,0 +1,1 @@
+-rw-rw-rw- 1 shell shell 1932 2026-08-21 19:24 /data/local/tmp/R11.out

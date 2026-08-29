@@ -1,0 +1,1 @@
+-rw-rw-rw- 1 shell shell 911 2026-08-30 00:59 /data/local/tmp/R11.out

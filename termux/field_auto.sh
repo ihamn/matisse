@@ -144,7 +144,7 @@ fire(){ local name="$1" stage="$2" task="$3" te="" rc_line
   [ -n "$task" ] && te=" PSELECT_TASK=$task"
   cleangate || { say "!! $name 门槛文件删不净, 弃打本轮(防陈旧误判)"; return 1; }
   rsh1 "am kill-all" 20 >/dev/null
-  local cmd="timeout 250 env PSELECT_SLIDE_TRIGGER=1 PSELECT_CRED=1 PSELECT_PERF_CRED=1 PSELECT_RETRY=1 PSELECT_PTR_MODE=1 PSELECT_PTR_STAGE=$stage PSELECT_PTR_STRICT=1 PSELECT_PTR_RIGHT=auto PSELECT_TREE_PC=ffffff8002a41b90 PSELECT_TREE_LEFT=0 PSELECT_SKIP_WARMUP=1 PSELECT_WAIT_SECONDS=200 PSELECT_WAITER_WAKE_SECONDS=3 PSELECT_WINDOW_SECONDS=20 PSELECT_NO_CANARY=1$te LD_PRELOAD=/data/local/tmp/preload.so /system/bin/sleep 180 > /data/local/tmp/$name.out 2>&1; echo \"${name}_RC=\$?\""
+  local cmd="timeout 250 env PSELECT_SLIDE_TRIGGER=1 PSELECT_CRED=1 PSELECT_PERF_CRED=1 PSELECT_RETRY=1 PSELECT_PTR_MODE=1 PSELECT_PTR_STAGE=$stage PSELECT_PTR_STRICT=1 PSELECT_PTR_RIGHT=ffffff80027b0ae0 PSELECT_TREE_PC=ffffff8002a41b90 PSELECT_TREE_LEFT=0 PSELECT_SKIP_WARMUP=1 PSELECT_WAIT_SECONDS=200 PSELECT_WAITER_WAKE_SECONDS=3 PSELECT_WINDOW_SECONDS=20 PSELECT_NO_CANARY=1$te LD_PRELOAD=/data/local/tmp/preload.so /system/bin/sleep 180 > /data/local/tmp/$name.out 2>&1; echo \"${name}_RC=\$?\""
   say "开火 $name (约4-5分钟,请勿动手机,保持亮屏)..."
   rc_line=$(rsh1 "$cmd" 280 | grep -a "_RC=" | tail -1)
   if [ -z "$rc_line" ]; then

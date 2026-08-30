@@ -134,7 +134,7 @@ say "体检完成,开始开火"
 # ---------- 5. 开火 / 门槛 / 分支 ----------
 cleangate(){ local i
   for i in 1 2 3 4; do
-    rsh "rm -f /data/local/tmp/mt49_child_status.txt /data/local/tmp/root_alive.txt" 20 >/dev/null
+    rsh "pkill -9 -x sleep 2>/dev/null; rm -f /data/local/tmp/mt49_child_status.txt /data/local/tmp/root_alive.txt" 20 >/dev/null
     GONE=$(rsh "ls /data/local/tmp/mt49_child_status.txt /data/local/tmp/root_alive.txt 2>/dev/null | wc -l" 20 | tr -d '\r ')
     [ "$GONE" = "0" ] && return 0
     say "门槛文件未删净(残留 $GONE), 重试 $i..."

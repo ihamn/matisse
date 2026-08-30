@@ -1,0 +1,21 @@
+[card] 第0步: 准备 git 和仓库
+[card] 仓库就绪: 12b3e21 mt67: ENTER_DELAY env override + C-stage 4s timing experiment.
+[card] 第1步: 查找 rish
+[card] rish 模式: stdin 身份: RISH_OK_2000
+[card] 第2步: 部署 mt67 preload.so 并校验 SHA256
+[card] 期望 SHA: f3b6c6661f63bd31e21383e209cf309a32f58925f2f15420be0262872e848d22
+[card] 实际 SHA: f3b6c6661f63bd31e21383e209cf309a32f58925f2f15420be0262872e848d22
+[card] 二进制校验通过 (mt67: 动态看门狗28s + 风暴收窗 + 窗口守卫 + C阶段4s延迟实验)
+[card] 第3步: 取证 (残留进程 + 每线程 state/wchan + 负载记录)
+[card] 取证落盘: 线程行数=0 (D/R=0)
+[card] 无残留, 继续
+[card] 第4步: 体检 (新 boot 自动等满 10 分钟; 负载只记录)
+[card] boot=639bb902-d26d-4c18-ac65-3029a808ebd2 enforce=Enforcing settle=OK load=12.17 13.43 15.06 1/9833 5489 (仅记录)
+[card] 体检完成,开始开火
+[card] 开火 R11 (约4-5分钟,请勿动手机,保持亮屏)...
+[card] R11_RC=255 enforce=Server is not running
+[card] R11 门槛判定: R_MISS
+[card] boot 变化, 停止后续轮
+[card] 第6步: 回收数据并回传
+[card] Shizuku 连接闪断(第1次), 8秒后重试...
+[card] 结束活体: Enforcing 639bb902-d26d-4c18-ac65-3029a808ebd2 26.81 43.30 29.65 1/8571 18034 

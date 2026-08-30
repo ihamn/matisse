@@ -164,3 +164,24 @@ R_LANDED → C1 开火（prep~2min, 窗口余量~4min）→ C 写落地 → 子�
 ## 下一步判定树（不变）
 
 R_LANDED → C1 开火（mt63 v1+v2 全护）→ C 写落地 → AND-gate → setresuid(0,0,0) → root_alive.txt 终局；R_MISS → R12 重掷（这次不会被卡）；再 MISS → 按卡停止，隔时段再跑。
+
+# 十三、09:43 轮裁定 + mt64：mt51 假阳性致 C 写只拿 1/6 发（2026-08-30）
+
+**里程碑：R_LANDED → C1 首次真正开火（mt63 v1+v2 双护），双写阶段全打通；败因 = mt51 发间检查在 C 阶段的结构性假阳性。**
+
+事实链（8aff70a，全一手）：
+- R11 轮：R 写落地（mt48 stage=R right=ffffff80027b0ae0），子进程 poll=100 起 CapEff=000001ffffffffff 持续满帽，rc=3 惰性退出，无 panic
+- gate 判 R_LANDED → C1 外部模式正常开火（console 有 [mt63] 标记，cleangate 不再误杀）——mt63 v1+v2 修复全部兑现
+- C1 轮：mt49 external task=ffffff80db77a500（与 R11 子进程同 task ✓），mt48 stage=C pc=task+0x778 → STORE→[task+0x780 cred]（几何正确）
+- **败点**：`mt25: futex trigger 0` 后紧跟 `mt51: mid-burst landing (CapEff=000001ffffffffff root=0) - abort shots ti=1`——6 连发只打了 1 发
+- **根因（slide.c:407-427）**：mt51 发间检查读 mt49_child_status.txt，中止条件 `CapEff>=满帽 || root_seen`。该签名是 **R 写的**（status 读 real_cred）；而 C1 开火的前提恰恰是 R 写已落地 → 文件里 CapEff 恒满帽 → **条件在 C 阶段恒真，首发后必假阳性中止**。C 写的落地签名应是 euid==0（cred 已换）或 root_seen=1，代码没区分阶段
+- 后果实证：R11 子进程在 C 写尝试后 90+ 秒（poll=900→1350）仍 uid=2000——cred 未换，1 发不够中
+- 结构性：不修则**每一轮 C1 都只拿 1 发**（假阳性必然触发），C 写命中率被砍到 1/6
+
+**mt64 修复（零二进制，fire() 两处）**：
+1. 外部模式分支：清 root_alive 后追加 `chmod 000 mt49_child_status.txt`——mt51 的 open(O_RDONLY) 因 owner 无读位失败 → 检查整体跳过 → **6 发全打**（等效于 stage R 轮的实证安全 profile：09:09/09:43 两轮 R 写均 6 发全打+中途落地+零 panic）。R11 子进程不受影响：gate 判定读 /proc/self/status+getresuid（与该文件无关），其状态写 open 失败仅静默跳过（main.c:719 `if (sfd>=0)`），gate 命中后 setresuid(0,0,0) 以 root 身份写 root_alive.txt（root 绕过 DAC，该文件本就 0644）
+2. cmd 尾部：`mtc64rc=\$?; chmod 644 ...; echo "${name}_RC=\$mtc64rc"`——正常/外层超时退出均恢复可读，第 6 步遥测照收（若 gate 已命中，子进程此刻 uid=0/euid=0/root_seen=1 会一并落进 mt49_status_final.txt）
+- 已接受权衡：C1-panic 轮 recover.sh 读不到状态文件（mode 000 残留）→ 损失该轮冻结帧；dropbox panic 栈不受影响仍是主裁定通道，下一轮 cleangate rm（unlink 不看文件 mode）+ 子进程重建 0644 自愈
+- sed 投递三项验证过（与正本逐字节一致/bash -n/幂等）；**教训已吃**：替换文本含 `2>&1`，`&` 在 sed 替换侧是"整个匹配"元字符必须写 `\&`（首验即抓到，输出 `2>…1` 损坏）
+
+**下一掷判定树**：R_LANDED → C1（console 见 [mt64] 标记 + C1_raw.out 见 6 条 mt25 trigger = 致盲生效）→ C 写 6 发任中 → 子进程 AND-gate（CapEff满∧euid=0）→ setresuid(0,0,0) → root_alive.txt（pid/uid=0/euid=0/满帽）= 项目终局。R_MISS → R12 重掷。C1 panic → recover.sh（冻结帧或损，dropbox 栈为准）→ 重掷。

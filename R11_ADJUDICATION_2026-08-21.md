@@ -151,3 +151,16 @@ fire() 外部模式（task≠空，即 C1 补轮）跳过 cleangate：活体子�
 # 十一、下一掷判定树
 
 R_LANDED → C1 开火（prep~2min, 窗口余量~4min）→ C 写落地 → 子进程 AND-gate（CapEff满∧euid=0）命中 → setresuid(0,0,0) → commit_creds（两指针相等, BUG_ON 通过）→ root_alive.txt → 项目终局。C1 仍掷同款毒树骰子：panic → recover.sh → 重掷；落地 → win。R_MISS → R12 重掷（脚本既有逻辑）。
+
+# 十二、mt63-r1 (09:26) 裁定 + mt63-v2（2026-08-30）
+
+**本轮：R11 惰性未中（真方差）+ R12 被 cleangate 同款 bug 卡掉（v1 未覆盖内部模式）。**
+
+- R11：mt48 PTR 行正常打出（stage=R right=ffffff80027b0ae0），但 route STALL（route_done>12s，竞速输了）→ rc=3 惰性退出，子进程 1200+ 次轮询 CapEff=0。与 09:09 轮（落地）同二进制同载荷同负载量级 → 纯竞速骰子，1中1不中，符合方差。
+- R12：**弃打于 cleangate**——R11 的孤儿子进程在 480s 轮询窗内每 200ms fsync 重写状态文件（runlog 实证活到 poll=1200+），rm 删了立即复活 → 残留 1×4 → "删不净, 弃打"。v1 只修了外部模式（C1），R12 内部模式仍走 cleangate → 同坑二次踩。
+- mt63-v1 已确认在手机生效（c11525e 的 field_auto.sh 含 mt63 标记）。
+- **mt63-v2 修复**：cleangate 的 rm 前加 `pkill -9 -x sleep`——孤儿是 shell UID、comm 精确为 sleep 的遗留进程（pkill 同 UID 才杀得动，Termux 侧 sleep 是别的 UID 动不到，安全）；上一轮结果已在 gate 读取时定格，杀孤儿零证据损失。C1 外部模式不经 cleangate（v1 已跳过），写目标子进程不会被误杀。sed 三项验证过（与正本逐字节一致/bash -n/幂等）。
+
+## 下一步判定树（不变）
+
+R_LANDED → C1 开火（mt63 v1+v2 全护）→ C 写落地 → AND-gate → setresuid(0,0,0) → root_alive.txt 终局；R_MISS → R12 重掷（这次不会被卡）；再 MISS → 按卡停止，隔时段再跑。

@@ -204,3 +204,11 @@ R_LANDED → C1 开火（mt63 v1+v2 全护）→ C 写落地 → AND-gate → se
 采纳方案: 弃卡条件从 "两轮未中" 放宽到 "四轮未中"。R11 未中→R12 未中→R13→R14, 任一轮 R_LANDED 即转 C1(mt64 六发全打不变)。单卡至少一轮 R 落地概率 50%→93.75%; 期望卡时长 ~10min(期望 2.5 个 R 轮 + C1), 最坏 ~17min。相比重开卡(每次重付部署+取证 ~2min 且只保底 2 轮), 骰子密度显著提升。R13/R14 为内部模式, cleangate(mt63-v2 pkill)会清掉上一轮未落地孤儿, 与 R11/R12 同构安全。
 
 脚本改动(仅 termux/field_auto.sh, 二进制零改动): line177 else 分支替换为 R13/R14 嵌套续打; line183 回收列表扩 R11 R12 R13 R14 + mkdir logs_raw/R13 R14。验证: sed 产出与正本逐字节一致 / bash -n / 幂等三项全过(mt64 补丁保留, grep -c R13=2 R14=2)。
+
+### mt65-r1 补记 (用户确认): Shizuku 中途死亡的根因 = 息屏
+
+用户确认卡运行中手机息屏。时间线吻合: R12/R13 尾部 getenforce=Enforcing(会话活着), R14 尾部 getenforce="Server is not running"(Shizuku 已死), 第6步全部回收为 1 行错误信息。R11 的 CONTAMINATED(外层超时)疑似同因早期息屏或独立会话故障。
+
+防复发: 开发者选项开启"充电时保持唤醒"(Stay awake while charging)+全程插电; 或每次开卡前把息屏超时调到 10 分钟以上。注意 termux-wake-lock 只保 CPU 不保屏幕 — 此前 6 张卡能完整跑完是因屏幕全程亮着。
+
+裁定不变: R12/R13 惰性确证, R11/R14 待 recover.sh 回收 R14_raw.out + mt49_child_status.txt 冻结帧判读。

@@ -5,6 +5,9 @@
 # v4: 部署 mt61 (窗口 2s->20s, 修 consumer 被负载饿出窗) /
 #     负载闸全部移除 (日常负载从不<3, 闸只剩浪费; load 仅记录) /
 #     开火加 PSELECT_WINDOW_SECONDS=20 / 修复 v3 残留计数小 bug
+# v5: 部署 mt66 (看门狗 12s 死值->wake+window+5=28s 动态, 修 mt61 全员
+#     rc=3 之谜; 风暴打完即 timerfd 收窗, 省 ~16s/轮; 发间窗口存活守卫
+#     防迟到盲写; STALL 旗标加 enter_sched+t= 迟到遥测)。fire() env 不变。
 # ============================================================
 set -u
 TOKEN=$(cat "$HOME/.matisse_token" 2>/dev/null | tr -d ' \r\n' || true)
@@ -76,13 +79,13 @@ rpush(){ local l="$1" r="$2" out i
   done
   printf '%s\n' "$out"; return 1; }
 
-# ---------- 2. 部署 mt61 (SHA 机器校验) ----------
-say "第2步: 部署 mt61 preload.so 并校验 SHA256"
-[ -f "$WORK/bin/mt61/preload.so" ] || { say "!! 仓库里没有 bin/mt61/preload.so"; exit 3; }
-SHA_EXP=$(grep -a "^SHA256 preload.so:" "$WORK/bin/mt61/BUILD_INFO.txt" 2>/dev/null | head -1 | awk '{print $3}')
-[ -n "$SHA_EXP" ] || SHA_EXP=$(grep -o '[0-9a-f]\{64\}' "$WORK/bin/mt61/BUILD_INFO.txt" 2>/dev/null | head -1)
+# ---------- 2. 部署 mt66 (SHA 机器校验) ----------
+say "第2步: 部署 mt66 preload.so 并校验 SHA256"
+[ -f "$WORK/bin/mt66/preload.so" ] || { say "!! 仓库里没有 bin/mt66/preload.so"; exit 3; }
+SHA_EXP=$(grep -a "^SHA256 preload.so:" "$WORK/bin/mt66/BUILD_INFO.txt" 2>/dev/null | head -1 | awk '{print $3}')
+[ -n "$SHA_EXP" ] || SHA_EXP=$(grep -o '[0-9a-f]\{64\}' "$WORK/bin/mt66/BUILD_INFO.txt" 2>/dev/null | head -1)
 rsh "rm -f /data/local/tmp/preload.new" 20 >/dev/null
-rpush "$WORK/bin/mt61/preload.so" "/data/local/tmp/preload.new" >/dev/null
+rpush "$WORK/bin/mt66/preload.so" "/data/local/tmp/preload.new" >/dev/null
 rsh "mv -f /data/local/tmp/preload.new /data/local/tmp/preload.so; chmod 644 /data/local/tmp/preload.so" 30 >/dev/null
 SHA_GOT=$(rsh "sha256sum /data/local/tmp/preload.so" 30 | tr -d '\r' | awk '{print $1}')
 say "期望 SHA: ${SHA_EXP:-未知}"; say "实际 SHA: ${SHA_GOT:-读取失败}"
@@ -90,7 +93,7 @@ if [ -n "$SHA_EXP" ] && [ "$SHA_GOT" != "$SHA_EXP" ]; then
   case "$SHA_GOT" in *Request\ timeout*|*"blocked"*) say "$SHIZUKU_DEAD_HINT";; *) say "!! SHA 不一致,中止开火(防错二进制)";; esac
   exit 3
 fi
-say "二进制校验通过 (mt61: 窗口 20s)"
+say "二进制校验通过 (mt66: 动态看门狗28s + 风暴收窗 + 窗口守卫)"
 
 # ---------- 3. 取证阶段 (零开火) ----------
 say "第3步: 取证 (残留进程 + 每线程 state/wchan + 负载记录)"
@@ -193,19 +196,19 @@ rsh "cat /data/local/tmp/mt49_child_status.txt" 30 > "$WORK/logs_raw/R11/mt49_st
 rsh "dumpsys dropbox --print data_app_anr 2>/dev/null | tail -c 200000" 60 > "$WORK/logs_raw/anr_dropbox_${RUN_TS}.txt" 2>/dev/null
 ALIVE=$(rsh "getenforce; cat /proc/sys/kernel/random/boot_id; cat /proc/loadavg" 20 | tr -d '\r' | tr '\n' ' ')
 say "结束活体: $ALIVE"
-SIG_GREP=$(grep -a "mt61: pselect window\|pselect returned\|mt19b\|mt25: futex trigger 0" "$WORK/logs_raw/R11/R11_raw.out" 2>/dev/null | head -8)
+SIG_GREP=$(grep -a "mt61: pselect window\|mt66:\|pselect returned\|mt19b\|mt25: futex trigger 0\|mt59: STALL" "$WORK/logs_raw/R11/R11_raw.out" 2>/dev/null | head -12)
 IN_WINDOW=$( { grep -a -n "pselect returned\|mt19b: sched attempt" "$WORK/logs_raw/R11/R11_raw.out" 2>/dev/null | head -6; } )
-{ echo "# 卡6 Termux 自动运行 v4 $RUN_TS"
+{ echo "# 卡6 Termux 自动运行 v5 $RUN_TS"
   echo "- 取证: 线程行=$RESIDUE_FLAG (D/R=$STUCK_STATES)"
   echo "- 开火前: boot=$BOOT0 enforce=$ENF0 load=$LOAD0 (仅记录)"
   echo "- R11门槛: $R11_GATE / R12门槛: ${R12_GATE:-未跑} / C1开打: $C1_FIRED / $EXTRA"
-  echo "- mt61 窗口/落窗签名行:"; echo "$SIG_GREP"
+  echo "- mt61/mt66 窗口/风暴签名行:"; echo "$SIG_GREP"
   echo "- 落窗判读行号 (mt19b 在 pselect returned 之前=落窗内):"; echo "$IN_WINDOW"
   echo "- 结束活体: $ALIVE"
 } > "$WORK/logs_raw/CARD6_TERMUX_${RUN_TS}.md"
 cp "$CONSOLE_LOG" "$WORK/logs_raw/termux_console_${RUN_TS}.log" 2>/dev/null
 git add -A >/dev/null 2>&1
-git commit -q -m "termux auto card6-v4 ${RUN_TS}: R11=${R11_GATE} R12=${R12_GATE:-skip} C1=$C1_FIRED$EXTRA (mt61 window=20s first fire)" || true
+git commit -q -m "termux auto card6-v5 ${RUN_TS}: R11=${R11_GATE} R12=${R12_GATE:-skip} C1=$C1_FIRED$EXTRA (mt66: watchdog 28s + storm-close + guards first fire)" || true
 for i in 1 2 3; do
   git pull -q --rebase origin master 2>/dev/null
   git push -q origin master 2>/dev/null && { PUSHED=1; break; }

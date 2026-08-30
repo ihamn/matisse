@@ -212,3 +212,41 @@ R_LANDED → C1 开火（mt63 v1+v2 全护）→ C 写落地 → AND-gate → se
 防复发: 开发者选项开启"充电时保持唤醒"(Stay awake while charging)+全程插电; 或每次开卡前把息屏超时调到 10 分钟以上。注意 termux-wake-lock 只保 CPU 不保屏幕 — 此前 6 张卡能完整跑完是因屏幕全程亮着。
 
 裁定不变: R12/R13 惰性确证, R11/R14 待 recover.sh 回收 R14_raw.out + mt49_child_status.txt 冻结帧判读。
+
+## 13. mt65-r2 裁定 (2026-08-30 12:14 回收): 11:52 卡四轮全惰性, 息屏双重伤害实锤
+
+### 四轮判定 (全部一手日志确证)
+| 轮 | route_done | 判定 | 证据 |
+|---|---|---|---|
+| R11 | 0 (STALL) | 惰性确证 | poll=50..2350 全程 uid=2000 CapEff=0 |
+| R12 | 0 (STALL) | 惰性确证 | STALL flags route_done=0 |
+| R13 | 0 (STALL) | 惰性确证 | mt48 PTR 行正常打出(init_cred 载荷+override 生效), 但 race 没成 |
+| R14 | 0 (STALL) | **惰性确证(冻结帧裁决)** | mt49_child_status: task=ffffff824237ca00(与R14子进程吻合) uid=2000 CapEff=0 root_seen=0 |
+
+root_alive.txt = 空。mt48 行全程 right=ffffff80027b0ae0 [PTR_RIGHT override] — mt62 补丁持续生效。无 panic, 无残留(取证 NO_RESIDUE)。
+
+### 关键事实: 手机根本没重启
+boot_id 全程 = 639bb902(11:52 开卡与 12:14 回收一致, uptime 40486s)。用户以为关机过 — 实际只是息屏。息屏的双杀: (1) 杀 Shizuku 会话(第6步回收全垃圾); (2) 触发 Android 后台维护 → 15分钟负载均值飙到 35.97 → 四轮竞赛全部调度饿死。R11=CONTAMINATED 也只是会话断, 不是设备崩。
+
+### 统计更新 (今日 15 轮)
+路由完成 5/15 (33
+## 13. mt65-r2 裁定 (2026-08-30 12:14 回收): 11:52 卡四轮全惰性, 息屏双重伤害实锤
+
+### 四轮判定 (全部一手日志确证)
+| 轮 | route_done | 判定 | 证据 |
+|---|---|---|---|
+| R11 | 0 (STALL) | 惰性确证 | poll=50..2350 全程 uid=2000 CapEff=0 |
+| R12 | 0 (STALL) | 惰性确证 | STALL flags route_done=0 |
+| R13 | 0 (STALL) | 惰性确证 | mt48 PTR 行正常打出(init_cred 载荷+override 生效), 但 race 没成 |
+| R14 | 0 (STALL) | **惰性确证(冻结帧裁决)** | mt49_child_status: task=ffffff824237ca00(与R14子进程吻合) uid=2000 CapEff=0 root_seen=0 |
+
+root_alive.txt = 空。mt48 行全程 right=ffffff80027b0ae0 [PTR_RIGHT override] — mt62 补丁持续生效。无 panic, 无残留(取证 NO_RESIDUE)。
+
+### 关键事实: 手机根本没重启
+boot_id 全程 = 639bb902(11:52 开卡与 12:14 回收一致, uptime 40486s)。用户以为关机过 — 实际只是息屏。息屏的双杀: (1) 杀 Shizuku 会话(第6步回收全垃圾); (2) 触发 Android 后台维护 -> 15分钟负载均值飙到 35.97 -> 四轮竞赛全部调度饿死。R11=CONTAMINATED 也只是会话断, 不是设备崩。
+
+### 统计更新 (今日 15 轮)
+路由完成 5/15 (33%, 集中在 09:09-11:02 亮屏期; 11:52 息屏期 0/4); 路由完成->写落地 5/5 (100%)。瓶颈唯一且明确: 路由完成 = f(负载/调度)。亮屏+低负载期完成率明显更高。
+
+### 裁定: 纯环境方差, 无 bug, 无挂起证据, 设备干净
+下一张卡随时可跑。前置条件: 开发者选项"充电时保持唤醒"+插电(防息屏双杀); 负载高时等一等(15分钟均值降回 20 以下再开)。C1 逻辑零问题 — 四轮都没落地, 不存在该打没打的 C。

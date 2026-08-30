@@ -185,3 +185,14 @@ R_LANDED → C1 开火（mt63 v1+v2 全护）→ C 写落地 → AND-gate → se
 - sed 投递三项验证过（与正本逐字节一致/bash -n/幂等）；**教训已吃**：替换文本含 `2>&1`，`&` 在 sed 替换侧是"整个匹配"元字符必须写 `\&`（首验即抓到，输出 `2>…1` 损坏）
 
 **下一掷判定树**：R_LANDED → C1（console 见 [mt64] 标记 + C1_raw.out 见 6 条 mt25 trigger = 致盲生效）→ C 写 6 发任中 → 子进程 AND-gate（CapEff满∧euid=0）→ setresuid(0,0,0) → root_alive.txt（pid/uid=0/euid=0/满帽）= 项目终局。R_MISS → R12 重掷。C1 panic → recover.sh（冻结帧或损，dropbox 栈为准）→ 重掷。
+
+# 十四、10:07 轮裁定：C1 惰性（路由 STALL 于风暴前，0 发）— 2026-08-30
+
+**mt64 交付验证 + R 写第 3 次落地；C 写未中于"风暴没跑"，非新 bug。**
+
+- R11 轮：R_MISS（惰性）；R12 轮：R 写落地（mt48 stage=R，CapEff 满帽自 poll=50 起，rc=3 STALL，无 panic）→ R 落地累计 3 次（09:09/09:43/10:07）
+- C1：mt64 标记出现（console 实证），致盲+恢复链路正常（收尾冻结帧可读 = chmod 644 恢复生效）；mt48 stage=C 几何正确；**但路由 STALL 于 mt19b 之前 → mt25 计数=0、mt19b 计数=0 → 一发未打**。requeue EDEADLK（errno=35）已触发但消费风暴未排入 → 无树走查 → 无 erase → 无写。与 R 轮惰性同源（路由完成率 ~50%，09:26 两轮同款）
+- 冻结帧：`task=ffffff81ee764a00 uid=2000 euid=2000 CapEff=000001ffffffffff root_seen=0` — R 落地、C 未中、无 root
+- **关键统计（路由完成→R 写落地：3/3）**：09:09/09:43/10:07 三轮 R 落地全发生在路由完成的轮次（mt19b+6×mt25 全打）；两次惰性轮全未中。推论：每发走查命中 ~20-30%，7 次走查（mt19b+6 发）累计接近必中。C1@09:43 仅 1-2 次走查未中与此一致
+- **mt64 的真正考验还没到来**：需要一轮"C1 路由完成 + 风暴全跑"——预期 C1 日志出现 mt19b 行 + mt25 trigger 0..5 六行且无 mt51 中止行
+- 裁定：纯方差，无需新补丁。重掷即可。判定树不变

@@ -110,3 +110,44 @@ mrdump 全程介入 = `Last boot reason: kernel_panic` 的来源。用户确认�
 ## 六、下一步（唯一待办）
 
 用户侧跑 recollect_r11.sh（只读、字节校验、零开火）→ 拉 1932 字节 R11.out → 终裁 H1/H2 → mt62 立项。
+
+---
+
+# 七、R11.out 终裁（2026-08-30 01:15，r11v2_20260830_011545）
+
+1932B 与 911B（mt62 轮）两个 panic 轮 R11.out 均**全 NUL**（md5 双端一致）。机制：stdout 只 fflush 无 fsync，panic 重启后 f2fs 仅恢复 inode 尺寸、数据页丢失。**runlog 通道对 panic 轮判死，不再投入回收轮。** H1/H2 之争随之作废，mt62 锁定方向 A：载荷从喷页假 cred 换 init_cred（dmap 别名 `ffffff80027b0ae0`，Δ=0 已实证），二进制零改动（mt54 时代既有 `[PTR_RIGHT override]` 路径）。交付：sed 一行粘贴（base64 行在聊天生成时截断损坏，弃用）。
+
+# 八、mt62 两轮纵向（同一 mt61 二进制）
+
+| 轮 | 载荷 | R 写 | 结局 |
+|---|---|---|---|
+| R11 (mt61) | 喷页假cred | 落地 | panic: selinux_task_to_inode @0x4（载荷 security=NULL 内容死）|
+| mt62-r1 (08-30 00:59) | init_cred | 未落地 | panic: 毒树走查 rt_mutex_adjust_prio_chain+0x548（假节点窗口期，写原语自身副作用，与载荷无关）|
+| mt62-r2 (08-30 09:09) | init_cred | **落地且存活** | **无 panic**，rc=3 惰性退出；C1 未获开火（见九）|
+
+# 九、mt62-r2：R_LANDED 首次达成 + C1 近失裁定（本轮头条）
+
+**里程碑：写原语 R 阶段首次在同轮内存活落地。**
+
+事实链（logs_raw/ea7592b，全一手）：
+- 09:09:35 卡启动，mt61 SHA `19e8f636` 校验通过，boot `639bb902`，Enforcing，负载 13.79（高负载下照样落地 — mt61 窗口 20s 设计兑现）
+- R11 轮 runlog 91 行**完整存活**（首次非 NUL — 因为没 panic）
+- `mt48: PTR stage=R task=ffffff82626aa500 right=ffffff80027b0ae0 [PTR_RIGHT override]` — mt62 载荷确认在用
+- 写落地实证：mt47 子进程自 poll=50 起持续 `CapEff=000001ffffffffff`（满帽）至 poll=1300 — **real_cred=init_cred 存活 260+ 秒，设备零崩溃，Enforcing 全程**
+- `uid=2000`（cred 指针未换 = 半程态，与 mt48 AND-gate 设计完全一致：CapEff 满帽∧euid==0 才动手，半程态结构性不触发 commit_creds BUG_ON）
+- 路由 STALL（route_done>12s）→ rc=3 惰性轮退出 — C 阶段本轮内未触发（真方差，非 bug）
+- 门槛判定 R_LANDED（CapEff≠0）→ 正确
+
+**C1 弃打 = 本轮唯一败因（脚本 bug，已修 mt63）：**
+- fire() 先调 cleangate()：rm `mt49_child_status.txt`+`root_alive.txt` 后 ls 验证
+- 但 `mt49_child_status.txt` 是**活体 R11 子进程每 200ms fsync 重写的**（main.c:719-727）— rm 后瞬间复活 → 残留 1 → 重试 4 次全败 → "删不净, 弃打本轮"
+- 讽刺闭环：删不掉的文件正是门槛刚读出 R_LANDED 的那个文件；它删不掉恰恰证明写目标（活体子进程）还活着 — **这正是该开火的信号，却被当成污染信号**
+- 时间线证明窗口本足够：子进程窗口 = fork 后 480s（2400×200ms）；R11_RC 约在 fork 后 ~100s 返回；C1 若按时开火（prep ~2min）写落地在窗口内还剩 ~4min 余量 — **此 bug 单独毁掉了史上最接近的一掷**
+
+# 十、mt63 修复（field_auto.sh 单点改动，二进制不动）
+
+fire() 外部模式（task≠空，即 C1 补轮）跳过 cleangate：活体子进程正在写的状态文件不是污染，是活体遥测；仅清 root_alive.txt（本轮内不可能由子进程创建 — gate 需 euid==0，C 写未落地前不可能；其存在只可能是旧轮残留）。R11/R12 内部模式（task=空）行为不变。证据标记：C1 开打时 console 出现 `[mt63] C1 外部模式: 不清状态文件...`。sed 一行已验证：产出与正本逐字节一致 / bash -n / 幂等 三项全过。
+
+# 十一、下一掷判定树
+
+R_LANDED → C1 开火（prep~2min, 窗口余量~4min）→ C 写落地 → 子进程 AND-gate（CapEff满∧euid=0）命中 → setresuid(0,0,0) → commit_creds（两指针相等, BUG_ON 通过）→ root_alive.txt → 项目终局。C1 仍掷同款毒树骰子：panic → recover.sh → 重掷；落地 → win。R_MISS → R12 重掷（脚本既有逻辑）。

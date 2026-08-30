@@ -174,13 +174,13 @@ else
   if [ "$R12_GATE" = "R_LANDED" ] && [ "$BOOT2" = "$BOOT0" ]; then
     T=$(gettask); say "R12 落地! 立即补 C 轮 TASK=$T"; C1_FIRED=1; fire C1 C "$T"
   else
-    say "两轮未中,按卡停止"; EXTRA="$EXTRA two_miss_stopped"
+    say "两轮未中, mt65 续打 R13/R14"; fire R13 R ""; R13_GATE=$(gate); say "R13 门槛: $R13_GATE"; BOOT3=$(bootid); if [ "$R13_GATE" = "R_LANDED" ] && [ "$BOOT3" = "$BOOT0" ]; then T=$(gettask); say "R13 落地! 补 C 轮 TASK=$T"; C1_FIRED=1; fire C1 C "$T"; else fire R14 R ""; R14_GATE=$(gate); say "R14 门槛: $R14_GATE"; BOOT4=$(bootid); if [ "$R14_GATE" = "R_LANDED" ] && [ "$BOOT4" = "$BOOT0" ]; then T=$(gettask); say "R14 落地! 补 C 轮 TASK=$T"; C1_FIRED=1; fire C1 C "$T"; else say "四轮未中,按卡停止"; EXTRA="$EXTRA four_miss_stopped"; fi; fi
   fi
 fi
 
 # ---------- 6. 回收 + 回传 ----------
 say "第6步: 回收数据并回传"
-for n in R11 R12; do
+mkdir -p "$WORK/logs_raw/R13" "$WORK/logs_raw/R14"; for n in R11 R12 R13 R14; do
   rsh "cat /data/local/tmp/$n.out" 90 > "$WORK/logs_raw/$n/${n}_raw.out" 2>/dev/null
   [ -s "$WORK/logs_raw/$n/${n}_raw.out" ] || rm -f "$WORK/logs_raw/$n/${n}_raw.out"
 done

@@ -70,7 +70,7 @@ mkdir -p "$DEST"
 } > "$DEST/device_state.txt" 2>&1
 rsh "ls -la /data/local/tmp/" 30 > "$DEST/tmp_listing.txt" 2>&1
 say "设备状态已存 (boot_id 在 device_state.txt)"
-for f in R11 R12 C1 R9 R10 R7 R8; do
+for f in R11 R12 R13 R14 C1 R9 R10 R7 R8; do
   rsh "cat /data/local/tmp/$f.out" 90 > "$DEST/${f}_raw.out" 2>/dev/null
   [ -s "$DEST/${f}_raw.out" ] || rm -f "$DEST/${f}_raw.out"
 done

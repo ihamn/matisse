@@ -1,0 +1,4 @@
+[card] 第0步: 准备 git 和仓库
+[card] 仓库就绪: 16747b8 termux auto card6-v4 20260830_110239: R11=R_MISS R12=R_LANDED 
+[card] 第1步: 查找 rish
+[card] !! rish 无法执行(Shizuku 没在运行?)输出: Server is not running

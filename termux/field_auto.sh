@@ -8,6 +8,8 @@
 # v5: 部署 mt66 (看门狗 12s 死值->wake+window+5=28s 动态, 修 mt61 全员
 #     rc=3 之谜; 风暴打完即 timerfd 收窗, 省 ~16s/轮; 发间窗口存活守卫
 #     防迟到盲写; STALL 旗标加 enter_sched+t= 迟到遥测)。fire() env 不变。
+# v6.1 (mt68 脚本修复): bootid() 只认 UUID 格式+重试, BOOT0 非 UUID 停卡,
+#     READ_FAIL 分支标 shizuku_dead 而非 boot_changed (173937 空转卡根因).
 # v6: 部署 mt67 (PSELECT_ENTER_DELAY_USEC 环境可调)。C 阶段加 4s 风暴延迟
 #     对齐 R 阶段时序 (153134 卡 R11@t=4000ms vs C1@t=50ms, 80 倍差是 C 写
 #     命中率可疑偏低的头号嫌犯)。实验性: 如 C 命中率显著提升则固化, 否则回退。
@@ -125,6 +127,11 @@ say "无残留, 继续"
 say "第4步: 体检 (新 boot 自动等满 10 分钟; 负载只记录)"
 BOOT0=$(rsh "cat /proc/sys/kernel/random/boot_id" 20 | tr -d '\r')
 case "$BOOT0" in *Request\ timeout*|*"blocked"*|"") say "$SHIZUKU_DEAD_HINT"; exit 4;; esac
+# mt68: BOOT0 非 UUID 一律停卡 (Shizuku 半死窗口会返回 "Server is not running" 等
+# 错误文本, 若放行会在后续比较中被误判为 boot_changed)
+if ! printf '%s' "$BOOT0" | grep -qE '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'; then
+  say "!! BOOT0 非 UUID 格式: $BOOT0 — Shizuku 不稳定, 停卡"; exit 4
+fi
 ENF0=$(rsh "getenforce" 20 | tr -d '\r')
 [ "$ENF0" = "Enforcing" ] || { say "!! enforce=$ENF0 非预期, 停"; exit 4; }
 while :; do
@@ -166,12 +173,24 @@ gate(){ local st; st=$(rsh "cat /data/local/tmp/mt49_child_status.txt" 30 | tr -
   if [ -z "$st" ] || ! printf '%s' "$st" | grep -q "task="; then echo "R_MISS"; return; fi
   if printf '%s' "$st" | grep -q "CapEff=0000000000000000"; then echo "R_MISS"; else echo "R_LANDED"; fi; }
 gettask(){ rsh "cat /data/local/tmp/mt49_child_status.txt" 30 | tr -d '\r' | grep -a '^task=' | tail -1 | cut -d= -f2 | cut -d' ' -f1; }
-bootid(){ rsh "cat /proc/sys/kernel/random/boot_id" 20 | tr -d '\r'; }
+# mt68: boot_id 只认 UUID 格式 — 173937 卡 Shizuku 死窗口返回 "Server is not
+# running" 被当成 boot 变化, 空转卡误停 (设备根本没重启, 结束活体同 boot_id)。
+# 非法输出按读取失败处理: 重试 3 次, 全败返回 READ_FAIL (调用方视为未知, 停卡但标记
+# shizuku_dead 而非 boot_changed, 语义诚实)。
+bootid(){ local out i
+  for i in 1 2 3; do
+    out=$(rsh "cat /proc/sys/kernel/random/boot_id" 20 | tr -d '\r' | grep -aE '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' | head -1)
+    [ -n "$out" ] && { printf '%s\n' "$out"; return 0; }
+    [ "$i" -lt 3 ] && sleep 8
+  done
+  echo "READ_FAIL"; return 1; }
 
 fire R11 R ""
 R11_GATE=$(gate); say "R11 门槛判定: $R11_GATE"
 BOOT1=$(bootid)
-if [ "$R11_GATE" = "R_LANDED" ] && [ "$BOOT1" = "$BOOT0" ]; then
+if [ "$BOOT1" = "READ_FAIL" ]; then
+  say "!! Shizuku 读不到 boot_id (重试3次全败) — R11 结果不可信, 停卡"; EXTRA="$EXTRA shizuku_dead_after_R11"
+elif [ "$R11_GATE" = "R_LANDED" ] && [ "$BOOT1" = "$BOOT0" ]; then
   T=$(gettask); say "R 写落地! 立即补 C 轮 TASK=$T"; C1_FIRED=1; fire C1 C "$T"
 elif [ "$BOOT1" != "$BOOT0" ]; then
   say "boot 变化, 停止后续轮"; EXTRA="$EXTRA boot_changed"
@@ -180,10 +199,12 @@ else
   fire R12 R ""
   R12_GATE=$(gate); say "R12 门槛判定: $R12_GATE"
   BOOT2=$(bootid)
-  if [ "$R12_GATE" = "R_LANDED" ] && [ "$BOOT2" = "$BOOT0" ]; then
+  if [ "$BOOT2" = "READ_FAIL" ]; then
+    say "!! Shizuku 读不到 boot_id — R12 结果不可信, 停卡"; EXTRA="$EXTRA shizuku_dead_after_R12"
+  elif [ "$R12_GATE" = "R_LANDED" ] && [ "$BOOT2" = "$BOOT0" ]; then
     T=$(gettask); say "R12 落地! 立即补 C 轮 TASK=$T"; C1_FIRED=1; fire C1 C "$T"
   else
-    say "两轮未中, mt65 续打 R13/R14"; fire R13 R ""; R13_GATE=$(gate); say "R13 门槛: $R13_GATE"; BOOT3=$(bootid); if [ "$R13_GATE" = "R_LANDED" ] && [ "$BOOT3" = "$BOOT0" ]; then T=$(gettask); say "R13 落地! 补 C 轮 TASK=$T"; C1_FIRED=1; fire C1 C "$T"; else fire R14 R ""; R14_GATE=$(gate); say "R14 门槛: $R14_GATE"; BOOT4=$(bootid); if [ "$R14_GATE" = "R_LANDED" ] && [ "$BOOT4" = "$BOOT0" ]; then T=$(gettask); say "R14 落地! 补 C 轮 TASK=$T"; C1_FIRED=1; fire C1 C "$T"; else say "四轮未中,按卡停止"; EXTRA="$EXTRA four_miss_stopped"; fi; fi
+    say "两轮未中, mt65 续打 R13/R14"; fire R13 R ""; R13_GATE=$(gate); say "R13 门槛: $R13_GATE"; BOOT3=$(bootid); if [ "$BOOT3" = "READ_FAIL" ]; then say "!! Shizuku 读不到 boot_id — 停卡"; EXTRA="$EXTRA shizuku_dead_after_R13"; elif [ "$R13_GATE" = "R_LANDED" ] && [ "$BOOT3" = "$BOOT0" ]; then T=$(gettask); say "R13 落地! 补 C 轮 TASK=$T"; C1_FIRED=1; fire C1 C "$T"; else fire R14 R ""; R14_GATE=$(gate); say "R14 门槛: $R14_GATE"; BOOT4=$(bootid); if [ "$BOOT4" = "READ_FAIL" ]; then say "!! Shizuku 读不到 boot_id — 停卡"; EXTRA="$EXTRA shizuku_dead_after_R14"; elif [ "$R14_GATE" = "R_LANDED" ] && [ "$BOOT4" = "$BOOT0" ]; then T=$(gettask); say "R14 落地! 补 C 轮 TASK=$T"; C1_FIRED=1; fire C1 C "$T"; else say "四轮未中,按卡停止"; EXTRA="$EXTRA four_miss_stopped"; fi; fi
   fi
 fi
 

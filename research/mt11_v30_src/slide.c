@@ -62,6 +62,7 @@ static int slide_canary_hits;
 static int slide_window_wake_fd = -1;   /* timerfd: 风暴收尾收窗用 */
 static int64_t slide_window_open_ms = -1; /* 窗口开启时刻 (CLOCK_MONOTONIC) */
 static int slide_trigger_shots = 6;     /* mt25 发数, PSELECT_TRIGGER_SHOTS */
+static int slide_enter_delay_usec = PSELECT_ENTER_DELAY_USEC; /* mt67: env 覆盖初始 50ms */
 
 static int64_t slide_monotonic_ms(void) {
   struct timespec ts;
@@ -335,6 +336,12 @@ void slide_pselect_stack_copy(void) {
   if (slide_trigger_shots > 16) {
     slide_trigger_shots = 16;
   }
+  /* mt67: consumer ENTER_DELAY 环境可调 (PSELECT_ENTER_DELAY_USEC).
+   * R 阶段因 waiter 3s 醒 + 链路开销, 风暴自然落在窗口开启后 ~4s;
+   * C 阶段默认 50ms 就开火, 时序差异是 C 写命中率可疑偏低的头号嫌犯。
+   * 对齐实验: C 阶段设 PSELECT_ENTER_DELAY_USEC=4000000 复现 R 时刻。 */
+  slide_enter_delay_usec = (int)slide_env_long("PSELECT_ENTER_DELAY_USEC",
+                                                PSELECT_ENTER_DELAY_USEC, 0);
   slide_window_wake_fd = block_fd; /* mt66(b): 风暴收尾收窗 */
   slide_window_open_ms = slide_monotonic_ms();
   struct timespec timeout = {
@@ -343,8 +350,9 @@ void slide_pselect_stack_copy(void) {
   };
   struct timespec *timeoutp = &timeout;
   pr_info("mt61: pselect window=%lds (mt60 时代为 2s 死值) "
-          "mt66: watchdog=%lds shots=%d t=0ms\n",
-          mt61_window_secs, mt66_watchdog_secs, slide_trigger_shots);
+          "mt66: watchdog=%lds shots=%d enter_delay=%dusec t=0ms\n",
+          mt61_window_secs, mt66_watchdog_secs, slide_trigger_shots,
+          slide_enter_delay_usec);
   fflush(stdout);
 
   atomic_store(&slide_consume_go, 1);
@@ -405,7 +413,7 @@ void *slide_consumer_thread(void *arg __attribute__((unused))) {
     }
 
     if (seq == 1) {
-      usleep(PSELECT_ENTER_DELAY_USEC);
+      usleep(slide_enter_delay_usec);
     }
     /* mt66(c): ENTER_DELAY 睡醒后窗口可能已自然关闭 (consumer 被负载
      * 饿出整个窗口 = 2026-08-30 13/18 轮的形态) — 迟到开火 = fdset 内核

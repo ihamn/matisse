@@ -1,0 +1,35 @@
+SHA256 preload.so: f3b6c6661f63bd31e21383e209cf309a32f58925f2f15420be0262872e848d22
+SHA256 su_daemon:  12c937a0790f604ed084aa8c155cc5f7cc05767c7c00bd5ae6d97ad23f8c218f
+
+BUILD_ENV: NDK r29 linux, API 35, PROJECT=matisse-OS2.0.6.0.ULKCNXM,
+  sources=mt11_v30_src (= mt66) + mt67 (single file: slide.c, ~15 lines added).
+  Base = mt66 (watchdog dynamic + storm-close + liveness guards + canary fix + latency telemetry).
+
+mt67 change (one, in slide.c):
+ENTER_DELAY ENV OVERRIDE: PSELECT_ENTER_DELAY_USEC 环境变量覆盖默认 50ms。
+  R 阶段因 waiter 3s 醒 + stack_copy + 链路开销, 风暴自然落在窗口开启后 ~4s
+  (153134 卡 R11: mt19b@t=3998ms); C 阶段默认 50ms 就开火 (同卡 C1: mt19b@t=50ms)。
+  80 倍时序差是 C 写命中率可疑偏低的头号嫌犯 — 其他变量 (几何 6 发
+  ETIMEDOUT=完整 PI walk、right=init_cred、canary 干净) 全部对称。
+  对齐实验: C 阶段设 PSELECT_ENTER_DELAY_USEC=4000000 复现 R 时刻。
+  新字段 enter_delay=NNNusec 出现在 mt61 窗口行, SIG_GREP 兼容。
+
+RECIPE (unchanged from mt66): IonStack exploit Makefile + mt11_v30_src sources +
+  IonStack src/kernelsnitch headers + IonStack src/{su_blob.S,wallpaper_blob.S} +
+  assets/wallpaper.webp; make PROJECT=matisse-OS2.0.6.0.ULKCNXM NDK_ROOT=<ndk-r29>;
+  zero errors, 4 known-harmless unused-variable warnings identical to mt58-mt66.
+
+VERIFICATION:
+  preload.so: 187496 bytes (mt66 was 187344, +152 from mt67)
+  ELF aarch64 shared object; DT_NEEDED = libdl.so + libc.so only
+  Marker strings present: mt61 window, mt66 watchdog/window-wake/woke-after/mid-burst,
+    PSELECT_ENTER_DELAY_USEC, enter_delay= (mt67-specific)
+  su_daemon: byte-identical to mt58/60/61/66
+
+FIELD EXPECTATIONS:
+  R 阶段: 与 mt66 行为完全一致 (默认 enter_delay=50000usec)
+  C 阶段实验: 设置 PSELECT_ENTER_DELAY_USEC=4000000 → 风暴对齐到 ~4s
+  如果 C 命中率显著提升 → 时序是根因, 后续调最优值
+  如果仍为 0/N → 排除时序假设, 转查几何/副作用差异
+
+NOTE: first 64-hex field in this file is the preload.so hash (script-parsed).

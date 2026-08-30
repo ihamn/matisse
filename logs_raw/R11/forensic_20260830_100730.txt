@@ -1,0 +1,11 @@
+Sun Aug 30 10:08:03 CST 2026
+639bb902-d26d-4c18-ac65-3029a808ebd2
+Enforcing
+17.76 18.37 31.68 4/6950 19350
+32884.54 32999.36
+--- residue processes ---
+[card] Shizuku 连接闪断(第1次), 8秒后重试...
+NO_RESIDUE
+--- per-thread state/wchan of residue ---
+[card] Shizuku 连接闪断(第1次), 8秒后重试...
+

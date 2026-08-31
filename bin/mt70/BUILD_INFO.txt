@@ -1,0 +1,18 @@
+SHA256 preload.so: e36dd842cbc75c1439a52bc36eea8eb36ce4ca0c8dcb0bcacd7883054a1a2915
+SHA256 su_daemon:  12c937a0790f604ed084aa8c155cc5f7cc05767c7c00bd5ae6d97ad23f8c218f
+
+BUILD_ENV: Termux clang 21.1.8 (aarch64-unknown-linux-android24), API 35,
+  PROJECT=matisse-OS2.0.6.0.ULKCNXM, sources=research/mt11_v30_src
+  (= mt67 slide.c + mt69 PSELECT_PTR_PC_OFF + mt70 PSELECT_HOLDER).
+  Interim local build (NOT NDK r29 official build).
+  ELF aarch64 shared object; DT_NEEDED = libdl.so + libc.so only.
+
+mt70 changes (one, in main.c):
+  PSELECT_HOLDER=1 → fork mode only; child leaks task and enters 8min poll,
+  parent prints mt70: HOLDER task=... and exits without any write.
+  This creates a clean live target for R-external-mode isolation tests.
+
+VERIFICATION:
+  preload.so 188328 bytes
+  marker strings present: mt61/mt66/mt67 + PSELECT_PTR_PC_OFF + PSELECT_HOLDER
+  4 known-harmless warnings (same as mt58-mt67 builds)

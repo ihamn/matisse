@@ -1,0 +1,22 @@
+SHA256 preload.so: 69b270252989c1089adf56fd84dbfffddd0e05f3eff078fb2feff8adc58f76ec
+SHA256 su_daemon:  12c937a0790f604ed084aa8c155cc5f7cc05767c7c00bd5ae6d97ad23f8c218f
+
+BUILD_ENV: Termux clang 21.1.8 (aarch64-unknown-linux-android24), API 35,
+  PROJECT=matisse-OS2.0.6.0.ULKCNXM, sources=research/mt11_v30_src
+  (= mt67 slide.c + mt69 main.c PSELECT_PTR_PC_OFF).
+  This is an interim local build (NOT NDK r29 official build).
+  ELF aarch64 shared object; DT_NEEDED = libdl.so + libc.so only.
+
+mt69 change (one, in main.c):
+  PSELECT_PTR_PC_OFF env override for geometry-swap experiment.
+  Default behavior unchanged:
+    STAGE=R -> pc_off=0x770 -> write [task+0x778] real_cred
+    STAGE=C -> pc_off=0x778 -> write [task+0x780] cred
+  With env set:
+    PSELECT_PTR_STAGE=R PSELECT_PTR_PC_OFF=0x778 -> write [task+0x780] cred
+    PSELECT_PTR_STAGE=C PSELECT_PTR_PC_OFF=0x770 -> write [task+0x778] real_cred
+
+VERIFICATION:
+  preload.so 188152 bytes
+  marker strings present: mt61/mt66/mt67 + PSELECT_PTR_PC_OFF
+  4 known-harmless warnings (same as mt58-mt67 builds)

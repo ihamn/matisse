@@ -37,3 +37,10 @@ C 阶段（写 task+0x780 cred）0/6 未落地；R 阶段（写 task+0x778 real_
 - 恢复 Shizuku 后跑了一次标准 R fork（mt70，20s 窗口），同样 consumer 被饿出窗口：0 发。
 - 说明当前环境不适合跑触发实验，不是外部模式独有。
 - Shizuku 随后又变为未运行，现场实验再次停止。
+
+## 🎯 2026-09-01 C 几何决定性结论
+- R fork 默认 pc=0x770（写 real_cred）：全风暴落地 ✅
+- C external pc=0x778（写 cred）：全风暴 0/6 ❌
+- C fork pc=0x778：全风暴 0/6 ❌
+- **结论：C 写不落不是外部模式/时序，而是 pc=0x778 / 写 task+0x780 cred 的几何本身不落地。**
+- GeomB（R fork + PC_OFF=0x778）本次饿窗未判定，后续可补一次交叉确认。

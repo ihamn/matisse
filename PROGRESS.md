@@ -1,6 +1,6 @@
 # Matisse 项目进度看板
 
-> 自动维护，最新更新：2026-08-31
+> 自动维护，最新更新：2026-09-01
 
 ## 当前主目标
 CVE-2026-43499 临时 root → KernelSU。
@@ -24,3 +24,11 @@ C 阶段（写 task+0x780 cred）0/6 未落地；R 阶段（写 task+0x778 real_
 - mt69：`PSELECT_PTR_PC_OFF`
 - mt70：`PSELECT_PTR_PC_OFF` + `PSELECT_HOLDER`
 - 插件：`@dhicoc/dsh-reverse-skill`、`@linxin666/dsh-client-ui-task-board`
+
+## ⚠️ 2026-09-01 崩溃记录
+- 昨晚自动跑 R-external 隔离实验时，Rext4（60s 窗口、PSELECT_ENTER_DELAY_USEC=0）导致手机重启。
+- 新 boot：`bf1c84d3-2dfa-4a96-8098-e8f89e718a33`
+- `/data/local/tmp/Rext4.out` 为全 NUL（panic 前未 flush 或页缓存丢失），无法从该文件定位崩溃点。
+- Rext3 记录完整：consumer 风暴被饿出 20s 窗口（`pselect returned t=20012ms` 后 `mt19b t=20013ms`），0 发。
+- Shizuku 重启后未运行，当前停止一切现场实验。
+- 教训：不要在 consumer 已连续饿出窗口的环境下加长窗口硬试；应先等负载/调度恢复，或先跑只读取证确认无残留。

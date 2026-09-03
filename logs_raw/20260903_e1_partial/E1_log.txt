@@ -1,0 +1,30 @@
+=== E1 gradient start 23:07:17 boot=0ef4fdc9-8b0c-4cb9-b926-e251545a1faf ===
+--- round PC_OFF=0x770 (off770) rc=255 ---
+task=ffffff80035d5c80 uid=2000 euid=2000 CapEff=0000000000000000 root_seen=0
+child pid=14626 comm=sleep
+child alive=no
+sampler tail:
+23:08:36 pid=14626 comm=sleep state=S task=ffffff80035d5c80 uid=2000 euid=2000 CapEff=0000000000000000 root_seen=0
+23:08:36 pid=27418 comm=sleep state=S task=ffffff80d6345c80 uid=2000 euid=2000 CapEff=000001ffffffffff root_seen=0
+23:08:37 pid=28645 comm=timeout state=S task=ffffff80d6345c80 uid=2000 euid=2000 CapEff=000001ffffffffff root_seen=0
+23:08:37 pid=28647 comm=sleep state=S task=ffffff80d6345c80 uid=2000 euid=2000 CapEff=000001ffffffffff root_seen=0
+23:08:38 pid=14626 comm=sleep state=S task=ffffff80d6345c80 uid=2000 euid=2000 CapEff=000001ffffffffff root_seen=0
+23:08:38 pid=27418 comm=sleep state=S task=ffffff80d6345c80 uid=2000 euid=2000 CapEff=000001ffffffffff root_seen=0
+23:08:38 pid=28645 comm=timeout state=S task=ffffff80d6345c80 uid=2000 euid=2000 CapEff=000001ffffffffff root_seen=0
+23:08:38 pid=28647 comm=sleep state=S task=ffffff80d6345c80 uid=2000 euid=2000 CapEff=000001ffffffffff root_seen=0
+
+--- round PC_OFF=0x788 (off788) rc=255 ---
+task=ffffff80d6345c80 uid=2000 euid=2000 CapEff=000001ffffffffff root_seen=0
+child pid=25922 comm=à
+{€ÿÿÿ397_5
+child alive=yes
+sampler tail:
+16290 task=ffffff80d6345c80 uid=2000 euid=2000 CapEff=000001ffffffffff root_seen=0
+23:11:47 pid=27418 comm=sleep state=S task=ffffff80d6345c80 uid=2000 euid=2000 CapEff=000001ffffffffff root_seen=0
+23:11:48 pid=14626 comm=sleep state=S task=ffffff80d6345c80 uid=2000 euid=2000 CapEff=000001ffffffffff root_seen=0
+23:11:48 pid=16286 comm=timeout state=S task=ffffff80d6345c80 uid=2000 euid=2000 CapEff=000001ffffffffff root_seen=0
+23:11:48 pid=16290 comm=sleep state=S task=ffffff80d6345c80 uid=2000 euid=2000 CapEff=000001ffffffffff root_seen=0
+23:11:48 pid=25922 comm=à
+{€ÿÿÿ397_5 state=
+1 task=ffffff80d6345c80 uid=2000 euid=2000 CapEff=000001ffffffffff root_seen=0
+

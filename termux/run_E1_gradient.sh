@@ -29,7 +29,17 @@ echo "=== E1 gradient start $(date +%H:%M:%S) boot=$(cat /proc/sys/kernel/random
 fire_e1(){ # off label stage
   OFF=$1; LBL=$2; STG=$3
   SNAP=/data/local/tmp/E1_${LBL}_snap.txt
-  am kill-all 2>/dev/null
+  # 2026-09-03: load gate — refuse to fire while 1-min loadavg > 10.
+# Starvation is self-induced by heavy D-state work under load; running
+# during high load only wastes rounds and can cause soft-restart storms.
+LOAD=$(cut -d' ' -f1 /proc/loadavg 2>/dev/null || echo 0)
+LOAD_INT=${LOAD%.*}
+if [ "${LOAD_INT:-0}" -gt 10 ]; then
+  echo "load gate: 1-min loadavg=$LOAD >10, refuse to run; wait for recovery"
+  exit 2
+fi
+
+am kill-all 2>/dev/null
   rm -f /data/local/tmp/mt49_child_status.txt /data/local/tmp/root_alive.txt /data/local/tmp/E1_${LBL}.out $SNAP
   (while :; do
     for p in $(pgrep -f "sleep 180" 2>/dev/null); do

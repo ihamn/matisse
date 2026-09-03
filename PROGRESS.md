@@ -74,3 +74,12 @@ C 几何悖论：主树 C（写 task+0x780 cred）指令级应写而实测 0/N�
 - 但随后系统出现短暂连续软重启/高负载（loadavg 一度 186/1166/767），
   用户报告应用未清除。
 - **已停止一切现场实验。** next 等系统恢复、负载正常后再跑 off778/后续。
+
+## 2026-09-03 对面裁定（低余额，只记要点）
+- 本轮 off778 0 发 = 触发链没到 erase/write，C 几何一行没执行，非逻辑 bug。
+- E1 off788 comm 污染结论不受影响。
+- 饿窗是自诱导负载（D-state slab/skb/回收），不是新 bug；对进机时系统状态敏感。
+- 下次进机先清点：`ps -ef | grep -c "sleep 1"`（E2 sampler 孤儿泄漏），有就 kill。
+- 已给 `run_E1_gradient.sh` / `run_E4a_test.sh` / `run_E4b_chain.sh` 加 load gate：
+  1 分钟 loadavg >10 拒跑。
+- 根治方向（不急）：consumer 绑大核 + 风暴留小核，需单独 env knob 实验，不动默认。

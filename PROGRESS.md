@@ -1,19 +1,32 @@
 # Matisse 项目进度看板
 
-> 自动维护，最新更新：2026-09-02
+> 自动维护，最新更新：2026-09-04
 
 ## 当前主目标
 CVE-2026-43499 临时 root → KernelSU。
 
-## 当前阻塞
-C 几何悖论：主树 C（写 task+0x780 cred）指令级应写而实测 0/N；E4 pi-tree 备用几何已构建（mt72）待现场验证。
+## 当前阻塞（2026-09-04 已解 —— 悖论是检测假象）
+**C 阶段写入一直在落地**。"0/N 失败"= cred=init_cred 后子进程 SELinux SID 变 kernel，
+enforcing 下所有文件 I/O（status 更新/心跳/RootSeen 日志）被拒 → 检测通道集体致盲。
+详见 `CHECKPOINT_detection_artifact_20260904.md`。剩余工作：mt73 检测重造（无文件通道）。
 
-## 待跑实验矩阵（mt72，见 CHECKPOINT §九）
-| 实验 | 脚本 | 目的 | 成功判据 |
-|---|---|---|---|
-| E4a PI 隔离 | `run_E4a_test.sh` | pi_tree 几何单独写 cred（绕开 C 悖论） | child status euid=0 且 CapEff=0（半程态，结构性安全） |
-| E4b 两轮链 | `run_E4b_chain.sh` | R 轮写 real_cred + E4 轮补写 cred | root_alive.txt / ROOT-SEEN（AND-gate 命中 → root） |
-| E1 梯度测绘 | `run_E1_gradient.sh` | PC_OFF {0x770,0x788,0x778} 判别 H2/H3 | 0x788 轮 comm 污染 → 落点在写后被中和(H3)；无污染 → erase 未执行(H2) |
+## 零成本验证（下次进机第一件事）
+`dmesg | grep avc | grep -w kernel` — C 轮后出现 kernel 域 denied = 写已落地铁证。
+
+## mt73 TODO（检测重造）
+- gate 改 sticky：CapEff 满帽致盲前记录，之后仅凭 getresuid()==0 判 E4 落地
+- 落地信号走无文件通道：kill(ppid, SIGUSR1)（CAP_KILL）+ sethostname("glroot")（外部可读）
+- 两写落地后 setresgid/setresuid 的 BUG_ON 通过（cred==real_cred）→ uid0+满帽
+  （SID 仍 kernel，su_daemon 落地需 enforce 零写配合，原计划不变）
+- 外部铁证：R+E4 后 shell 读 /proc/<R-child>/status → Uid: 0 0 0
+
+## 已完成的对照实验（保留判读）
+| 实验 | 结果 | 现判读 |
+|---|---|---|
+| E1 off770（R 基线） | CapEff 满 7/7 | real_cred 写落地 + 检测通道活着（SID 未变）|
+| E1 off788（写 comm） | comm 污染，子进程存活 | STORE(a) 对 pc≥0x778 几何确实执行 |
+| off778b（写 cred） | status euid=2000 零心跳 | **status 是 t=0 陈旧快照；子进程被致盲非死亡；写已落地** |
+| E4a（pi_tree 写 cred） | "失败" | 判据结构性永不可见（同一致盲），极可能成功 |
 
 ## 现场前置条件
 - Shizuku 运行中

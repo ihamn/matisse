@@ -83,3 +83,8 @@ C 几何悖论：主树 C（写 task+0x780 cred）指令级应写而实测 0/N�
 - 已给 `run_E1_gradient.sh` / `run_E4a_test.sh` / `run_E4b_chain.sh` 加 load gate：
   1 分钟 loadavg >10 拒跑。
 - 根治方向（不急）：consumer 绑大核 + 风暴留小核，需单独 env knob 实验，不动默认。
+
+## 2026-09-04 off778 full-storm result
+- off778 full 6-shot, euid remains 2000 -> cred@0x780 write not persisting.
+- off788 comm corruption + E4a fail -> H3/cred-slot neutralization or consistency constraint.
+- **软重启线索**：用户观察到短暂连续软重启但应用未清除，疑似 system_server/zygote 级；请对面重点看是否 cred 不一致触发软重启保护/回滚。

@@ -101,3 +101,8 @@ enforcing 下所有文件 I/O（status 更新/心跳/RootSeen 日志）被拒 �
 - off778 full 6-shot, euid remains 2000 -> cred@0x780 write not persisting.
 - off788 comm corruption + E4a fail -> H3/cred-slot neutralization or consistency constraint.
 - **软重启线索**：用户观察到短暂连续软重启但应用未清除，疑似 system_server/zygote 级；请对面重点看是否 cred 不一致触发软重启保护/回滚。
+
+## 2026-09-04 mt73 detection rework (code only, not field-tested)
+- sticky CapEff-full flag + sethostname("glroot") beacon.
+- Solves SELinux kernel-SID blinding after cred swap.
+- Next field test: deploy mt73, run E4a, then check `cat /proc/sys/kernel/hostname` for "glroot".

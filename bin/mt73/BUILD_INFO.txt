@@ -1,0 +1,14 @@
+SHA256 preload.so: f0c6ab5be3faa5c629cac117c208be805c8709c1166302e7ad4450620bbe88d7
+SHA256 su_daemon:  12c937a0790f604ed084aa8c155cc5f7cc05767c7c00bd5ae6d97ad23f8c218f
+
+BUILD_ENV: Termux clang 21.1.8, API 35, PROJECT=matisse-OS2.0.6.0.ULKCNXM,
+  sources=research/mt11_v30_src (mt72 + mt73 main.c detection rework).
+  Interim local build (NOT NDK official).
+
+mt73 changes:
+- sticky CapEff-full flag in child loop: survives SELinux status-file blinding.
+- strict gate uses sticky CapEff && euid==0 instead of live /proc/self/status.
+- C half-state (euid==0, no R stick) sends sethostname("glroot") beacon without setresuid.
+- full root path also emits sethostname("glroot") as external indicator.
+
+VERIFICATION: markers present; ELF aarch64 SO; DT_NEEDED libdl/libc.

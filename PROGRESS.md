@@ -5,20 +5,24 @@
 ## 当前主目标
 CVE-2026-43499 临时 root → KernelSU。
 
-## 当前阻塞（2026-09-04 已解 —— 悖论是检测假象）
-**C 阶段写入一直在落地**。"0/N 失败"= cred=init_cred 后子进程 SELinux SID 变 kernel，
-enforcing 下所有文件 I/O（status 更新/心跳/RootSeen 日志）被拒 → 检测通道集体致盲。
-详见 `CHECKPOINT_detection_artifact_20260904.md`。剩余工作：mt73 检测重造（无文件通道）。
+## 当前状态（2026-09-04 晚）
+C 悖论已解（检测致盲假象，见 `CHECKPOINT_detection_artifact_20260904.md`）；
+mt73 检测重造已交付；**mt74 E5 几何指令级验证完毕，补丁已入 main.c，待构建+现场执行**。
+全链序列与判据：`CHECKPOINT_e5_geometry_20260904.md` §三（行动 runbook）。
 
-## 零成本验证（下次进机第一件事）
-`dmesg | grep avc | grep -w kernel` — C 轮后出现 kernel 域 denied = 写已落地铁证。
+## mt74 执行序列（现场按序，细节见 CHECKPOINT_e5 §三）
+1. E5 轮 `PSELECT_SELINUX_ENF=1` → 验证 `cat /sys/fs/selinux/enforce`==0
+2. R 轮 `PC_OFF=0x770` → CapEff 满（permissive 下全可见）
+3. C 轮 `PC_OFF=0x778 + PSELECT_TASK=<R-child>` → ROOT-SEEN + hostname=glroot
+4. `PSELECT_KO` → finit_module → ksu_done
 
-## mt73 TODO（检测重造）
-- gate 改 sticky：CapEff 满帽致盲前记录，之后仅凭 getresuid()==0 判 E4 落地
-- 落地信号走无文件通道：kill(ppid, SIGUSR1)（CAP_KILL）+ sethostname("glroot")（外部可读）
-- 两写落地后 setresgid/setresuid 的 BUG_ON 通过（cred==real_cred）→ uid0+满帽
-  （SID 仍 kernel，su_daemon 落地需 enforce 零写配合，原计划不变）
-- 外部铁证：R+E4 后 shell 读 /proc/<R-child>/status → Uid: 0 0 0
+## E5 关键静态事实（2026-09-04 指令级）
+- **enforcing@selinux_state+0**（avc_denied+0x1c `ldarb [state]; tbz #0`，Android
+  重排，非 upstream +1）；avc@+0x48 → 8 字节零写不碰指针
+- **RB_RED=0/RB_BLACK=1**：fops.c 老注释"RED已置位"是反的；TREE_PC 必须 `&~3`
+  （`|1`+child=0 会进 __rb_erase_color 旋转 = 致命）
+- CASE_A child=0：STORE(b) 有 `cbz` 守卫（@0x29c）→ E5 是单条 8 字节零写
+- 走主树（R 7/7 同款 store 路径），不碰 pi_tree
 
 ## 已完成的对照实验（保留判读）
 | 实验 | 结果 | 现判读 |

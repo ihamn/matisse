@@ -1,0 +1,5 @@
+SHA256 preload.so: 5b456e3c058bf3c16484fb97304b018f4eb8cd35500a30acb79576d4bb043c37
+SHA256 su_daemon:  12c937a0790f604ed084aa8c155cc5f7cc05767c7c00bd5ae6d97ad23f8c218f
+
+BUILD_ENV: Termux clang 21.1.8, API 35, PROJECT=matisse-OS2.0.6.0.ULKCNXM.
+mt77: PSELECT_CONSUMER_CPU env override (default CPU1 unchanged).

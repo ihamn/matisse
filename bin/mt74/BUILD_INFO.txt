@@ -1,0 +1,8 @@
+SHA256 preload.so: 9f5fa759ce41f897b01ff8134094eb081da8c2772c2f1bdbb1d38ed88c6e6566
+SHA256 su_daemon:  12c937a0790f604ed084aa8c155cc5f7cc05767c7c00bd5ae6d97ad23f8c218f
+
+BUILD_ENV: Termux clang 21.1.8, API 35, PROJECT=matisse-OS2.0.6.0.ULKCNXM,
+  sources=research/mt11_v30_src (remote mt74 main.c + current slide.c).
+  Interim local build (NOT NDK official).
+
+mt74 change: PSELECT_SELINUX_ENF E5 zero-write to selinux_state+0.

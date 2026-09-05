@@ -110,3 +110,8 @@ mt73 检测重造已交付；**mt74 E5 几何指令级验证完毕，补丁已�
 - sticky CapEff-full flag + sethostname("glroot") beacon.
 - Solves SELinux kernel-SID blinding after cred swap.
 - Next field test: deploy mt73, run E4a, then check `cat /proc/sys/kernel/hostname` for "glroot".
+
+## 2026-09-05 E5 field result
+- mt74 E5 selinux zero-write landed: `/sys/fs/selinux/enforce` = 0.
+- System black-screened after E5; dsh web task-board got corrupted inode (repaired by user).
+- Archive: `logs_raw/20260905_e5/`, binary `bin/mt74/`.

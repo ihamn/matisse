@@ -119,3 +119,8 @@ pstore 可判。剩余：按 §七 修订序列跑 R→E5→C→KO 全链。
 - mt74 E5 selinux zero-write landed: `/sys/fs/selinux/enforce` = 0.
 - System black-screened after E5; dsh web task-board got corrupted inode (repaired by user).
 - Archive: `logs_raw/20260905_e5/`, binary `bin/mt74/`.
+
+## 2026-09-05 E5 second black-screen
+- E5 fork mode again flipped enforce=0 and caused black screen/hang; user force rebooted.
+- Evidence in logs_raw/20260905_e5_black2/.
+- Do NOT run further E5 on device until root cause is understood.

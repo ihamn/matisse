@@ -131,3 +131,8 @@ X2）把两个 consumer 线程（main.c + slide.c）换绑大核。opt-in env，
 - E5 fork mode again flipped enforce=0 and caused black screen/hang; user force rebooted.
 - Evidence in logs_raw/20260905_e5_black2/.
 - Do NOT run further E5 on device until root cause is understood.
+
+## 2026-09-05 mt77 R success + E5v2 reboot
+- mt77 PSELECT_CONSUMER_CPU=6 fixed R starvation (R landed full storm).
+- E5v2 external round caused reboot again (output all NUL).
+- Stop E5-family tests; archive logs_raw/20260905_mt77_e5v2_reboot/.

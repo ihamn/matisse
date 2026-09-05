@@ -381,6 +381,32 @@ void slide_pselect_stack_copy(void) {
 void *slide_consumer_thread(void *arg __attribute__((unused))) {
   disable_rseq_for_thread();
   pin_to_core(CONSUMER_CORE);
+  /* mt77: PSELECT_CONSUMER_CPU override — 大核防饿。
+   * 2026-09-05 两轮 R 实证: load>1000 时 CPU1(小核) 被 D-state 风暴
+   * 占满, consumer 20s/30s 整窗不被调度 (mt19b 首次出现在窗口关闭后
+   * 15ms, R_mt76_starved.out)。天玑9000: 0-3 A510 / 4-6 A710 / 7 X2。
+   * 建议 PSELECT_CONSUMER_CPU=6。竞态时序校准过, 故仅 opt-in env,
+   * 默认行为不变; 失败回退 CPU1 并打日志。 */
+  {
+    char *cc_env = getenv("PSELECT_CONSUMER_CPU");
+    if (cc_env && *cc_env) {
+      int cc = atoi(cc_env);
+      cpu_set_t set;
+      CPU_ZERO(&set);
+      if (cc >= 0 && cc < CPU_SETSIZE) {
+        CPU_SET(cc, &set);
+        if (sched_setaffinity(0, sizeof(set), &set) == 0) {
+          pr_info("mt77: slide consumer pinned to CPU%d (env override)\n", cc);
+        } else {
+          pr_error("mt77: pin CPU%d failed errno=%d - keep CPU%d\n",
+                   cc, errno, CONSUMER_CORE);
+        }
+      } else {
+        pr_error("mt77: CPU%d out of range - keep CPU%d\n", cc, CONSUMER_CORE);
+      }
+      fflush(stdout);
+    }
+  }
 
   int seen = 0;
   for (;;) {

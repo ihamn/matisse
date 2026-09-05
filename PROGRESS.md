@@ -11,6 +11,12 @@ E5v1（全零写）**2/2 黑屏挂死**，但 E5 本身 2/2 落地（enforce=0�
 指针、initialized=0 决策全放行。心跳 ~80s 处戛然而止 ≈ watchdog 周期 →
 **杀手在用户态**。已写 E5v2（保留 initialized=1）+ E5R（写回 enforcing=1）。
 
+## mt77 新增（2026-09-05，源码已推）：consumer 大核防饿
+R_mt76 两轮饿窗实证（mt19b 首次出现在窗口关闭后 15ms，CPU1 被 D-state 风暴
+占满 20s/30s 整窗）→ `PSELECT_CONSUMER_CPU=6`（天玑9000: 0-3 A510/4-6 A710/7
+X2）把两个 consumer 线程（main.c + slide.c）换绑大核。opt-in env，默认行为
+不变；构建后先跑 R 轮对照（日志特征 `mt77: ... pinned to CPU6`）。
+
 ## mt76 执行序列（细节 CHECKPOINT_e5 §九）
 0. **零成本第一步**：`cat /sys/fs/pstore/console-ramoops* | tail -100` +
    `dmesg | grep -iE "watchdog|panic" | tail -40`（归因一锤定音）

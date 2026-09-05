@@ -194,6 +194,28 @@ void *owner_thread(void *arg __attribute__((unused))) {
 void *consumer_thread(void *arg __attribute__((unused))) {
   disable_rseq_for_thread();
   pin_to_core(CONSUMER_CORE);
+  /* mt77: PSELECT_CONSUMER_CPU override — 大核防饿 (同 slide.c, 见
+   * 2026-09-05 R_mt76_starved 饿窗实证)。仅 opt-in, 默认 CPU1 不变。 */
+  {
+    char *cc_env = getenv("PSELECT_CONSUMER_CPU");
+    if (cc_env && *cc_env) {
+      int cc = atoi(cc_env);
+      cpu_set_t set;
+      CPU_ZERO(&set);
+      if (cc >= 0 && cc < CPU_SETSIZE) {
+        CPU_SET(cc, &set);
+        if (sched_setaffinity(0, sizeof(set), &set) == 0) {
+          pr_info("mt77: consumer pinned to CPU%d (env override)\n", cc);
+        } else {
+          pr_error("mt77: pin CPU%d failed errno=%d - keep CPU%d\n",
+                   cc, errno, CONSUMER_CORE);
+        }
+      } else {
+        pr_error("mt77: CPU%d out of range - keep CPU%d\n", cc, CONSUMER_CORE);
+      }
+      fflush(stdout);
+    }
+  }
 
   /* v16: choose target */
   int target_mode = 0; /* 0=waiter, 1=pselect */

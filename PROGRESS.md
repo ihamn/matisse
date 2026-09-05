@@ -1,31 +1,38 @@
 # Matisse 项目进度看板
 
-> 自动维护，最新更新：2026-09-04
+> 自动维护，最新更新：2026-09-05（交接版）
 
 ## 当前主目标
 CVE-2026-43499 临时 root → KernelSU。
 
-## 当前状态（2026-09-05 第二次黑屏后）
-E5v1（全零写）**2/2 黑屏挂死**，但 E5 本身 2/2 落地（enforce=0）。全面静态排查
-（CHECKPOINT_e5 §八）排除内核侧：无 OEM 看门狗（159 引用全 SELinux）、清零窗无
-指针、initialized=0 决策全放行。心跳 ~80s 处戛然而止 ≈ watchdog 周期 →
-**杀手在用户态**。已写 E5v2（保留 initialized=1）+ E5R（写回 enforcing=1）。
+## ⚠️ E5v2 重启根因已破案（2026-09-05 深夜，交接前最后推导）
+**E5v2/E5R 的重启是我方 mt76 设计 bug，非 framework 反制**：写值 0x10000 放在
+TREE_RIGHT(word1)=child → child≠0 触发 STORE(b) `*(0x10000)=pc` → 对未映射
+内核地址写入 → panic → 整机重启（输出全 NUL = 不干净重启丢页缓存，完全吻合）。
+**写原语基本约束：写值只能是 0 或「可写牺牲指针」，小常数必 panic**（R 合法
+正因 child=init_cred 是有效可写指针）。
+修法 **E5v3**：child=fake_lock 喷页地址 → 字节布局天然给出 enforcing=0(byte0=
+页对齐)+initialized≠0(byte2)+牺牲 STORE(b)；**E5R**：child=fake_lock+1 →
+enforcing=1。见 `HANDOFF_2026-09-05_takeover.md` §5。
+**「保 initialized」语义从未被现场检验**（v2 死在写本身）——v1 黑屏根因
+（framework 对 enforce=0 反应 vs initialized=0 连带）仍开放，**pstore 定分晓**
+（从未收集过，重启后第一件事）。
 
-## mt77 新增（2026-09-05，源码已推）：consumer 大核防饿
-R_mt76 两轮饿窗实证（mt19b 首次出现在窗口关闭后 15ms，CPU1 被 D-state 风暴
-占满 20s/30s 整窗）→ `PSELECT_CONSUMER_CPU=6`（天玑9000: 0-3 A510/4-6 A710/7
-X2）把两个 consumer 线程（main.c + slide.c）换绑大核。opt-in env，默认行为
-不变；构建后先跑 R 轮对照（日志特征 `mt77: ... pinned to CPU6`）。
+## 交接文档（2026-09-05，新会话必读）
+- `HANDOFF_2026-09-05_takeover.md`（我方）：知识库 + E5v2 破案 + E5v3 修法 +
+  无 E5 取证路线 + 全链 playbook。
+- `HANDOFF_2026-09-05_mt77.md`（现场侧）：现场纪律、清理命令、二进制状态。
 
-## mt76 执行序列（细节 CHECKPOINT_e5 §九）
-0. **零成本第一步**：`cat /sys/fs/pstore/console-ramoops* | tail -100` +
-   `dmesg | grep -iE "watchdog|panic" | tail -40`（归因一锤定音）
-1. R 轮（PC_OFF=0x770）→ CapEff 满 + 记 R-child task（E5 轮清 stage/mt51 残留 env）
-2. E5v2 轮：`PSELECT_SELINUX_ENF=1`（默认值已改 0x10000 保留 initialized）→ enforce==0
-3. C 轮背靠背（PC_OFF=0x778 + PSELECT_TASK + PSELECT_KO）→ ROOT-SEEN + ksu_done
-4. **E5R 轮立即还原**：`PSELECT_SELINUX_ENF=1 PSELECT_SELINUX_ENF_VALUE=10001`
-   → enforce==1，permissive 窗口总计 ~1-2 分钟
-5. 若 E5v2 仍黑屏 → 反制轮询快于窗口 → 转 sid 修复路线（§九兜底，需 sid 泄漏另立项）
+## 现场最新（2026-09-05）
+- mt77 `PSELECT_CONSUMER_CPU=6` 防饿 **实证有效**：R 轮 full storm 落地
+  （`logs_raw/20260905_mt77_e5v2_reboot/R_mt77_landed.out`）。
+- E5v2 external 重启 ❌（根因见上，勿再跑 E5 直到 mt78 + pstore 就绪）。
+
+## mt78 待办（新会话第一静态工作）
+- mt74 分支改 E5v3：`PSELECT_SELINUX_ENF_VALUE` 新语义 SPRAY/SPRAY1/字面数
+  （非 0 非 SPRAY* 直接 abort 防再犯）；打印预期字节布局。
+- 全链：R（CPU6+预开 status fd+avc 取证）→ E5v3 → C+KO → E5R（细节
+  HANDOFF_takeover §6.4）。
 
 ## E5 关键静态事实（2026-09-04 指令级）
 - **enforcing@selinux_state+0**（avc_denied+0x1c `ldarb [state]; tbz #0`，Android

@@ -1,0 +1,8 @@
+SHA256 preload.so: 0b70661662aca26dc139c9e9b8e7b5c768a9797294ae7f75e18628c081c5a6ff
+SHA256 su_daemon:  12c937a0790f604ed084aa8c155cc5f7cc05767c7c00bd5ae6d97ad23f8c218f
+
+BUILD_ENV: Termux clang 21.1.8, API 35, PROJECT=matisse-OS2.0.6.0.ULKCNXM,
+  sources=research/mt11_v30_src (remote mt76 main.c + current slide.c).
+  Interim local build.
+
+mt76: E5v2 keep initialized=1 + E5R restore via PSELECT_SELINUX_ENF_VALUE.

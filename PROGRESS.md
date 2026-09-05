@@ -5,16 +5,20 @@
 ## 当前主目标
 CVE-2026-43499 临时 root → KernelSU。
 
-## 当前状态（2026-09-04 晚）
-C 悖论已解（检测致盲假象，见 `CHECKPOINT_detection_artifact_20260904.md`）；
-mt73 检测重造已交付；**mt74 E5 几何指令级验证完毕，补丁已入 main.c，待构建+现场执行**。
-全链序列与判据：`CHECKPOINT_e5_geometry_20260904.md` §三（行动 runbook）。
+## 当前状态（2026-09-05）
+**E5 已现场落地**（enforce=0，commit 75b01e2）：mt74 几何实战成功，写足迹复核
+无附带破坏。副作用：随后黑屏一次。静态归因（CHECKPOINT_e5 §六）：
+`initialized@state+2` 同被清零 → compute_av 静默 allow-all（零 AVC 日志）→
+排除日志风暴；黑屏 = 框架对 permissive 反应 或 风暴软重启（9/3 先例），
+pstore 可判。剩余：按 §七 修订序列跑 R→E5→C→KO 全链。
 
-## mt74 执行序列（现场按序，细节见 CHECKPOINT_e5 §三）
-1. E5 轮 `PSELECT_SELINUX_ENF=1` → 验证 `cat /sys/fs/selinux/enforce`==0
-2. R 轮 `PC_OFF=0x770` → CapEff 满（permissive 下全可见）
-3. C 轮 `PC_OFF=0x778 + PSELECT_TASK=<R-child>` → ROOT-SEEN + hostname=glroot
-4. `PSELECT_KO` → finit_module → ksu_done
+## mt75 修订执行序列（细节 CHECKPOINT_e5 §七）
+0. 重启后先收 pstore：`cat /sys/fs/pstore/console-ramoops*`（黑屏归因）
+1. R 轮（PC_OFF=0x770）→ CapEff 满 + 记 R-child task
+2. E5 轮（PSELECT_SELINUX_ENF=1）→ enforce==0
+3. C 轮 30s 内跟上（PC_OFF=0x778 + PSELECT_TASK + PSELECT_KO）
+   → ROOT-SEEN + hostname=glroot + ksu_done
+4. 框架连坐保险：全链可改 Shizuku/adb shell 跑（adbd 活过 framework 死亡）
 
 ## E5 关键静态事实（2026-09-04 指令级）
 - **enforcing@selinux_state+0**（avc_denied+0x1c `ldarb [state]; tbz #0`，Android

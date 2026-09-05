@@ -101,3 +101,44 @@ root 进程的 SID 是 kernel（init_cred->security 被 prepare_creds 拷贝）�
 enforcing 下 root 也开不了文件、insmod 不了。E5 是唯一让 root 「有用」的路，
 且它顺带复活全部检测通道（permissive → C 写不再致盲）。mt73 的无文件信标
 （sethostname）作为 permissive 失效时的冗余保留。
+
+## 六、E5 现场结果 + 黑屏归因（2026-09-05，commit 75b01e2）
+
+**结果：E5 落地确认** —— `mt74 pc=ffffff8002a41b90` 打出后 6 发全触发
+（t=12515-12656ms 正常窗口），跑完 `/sys/fs/selinux/enforce` 读 **0**。E5 轮
+自身干净收尾（mt47 心跳到 250、uid=2000 CapEff=0 符合预期——E5 不碰 cred，
+"no root" 是本轮目标外）。
+
+**写足迹复核（对照 R 轮 7/7）**：仅 selinux_state+0..+7 被 STORE(a) 清零；
+判别字读 *(state+8)、child=0 跳过 STORE(b)（cbz 守卫）、pc bit0=0 不旋转、
+pi_tree 零词走 root 无害路径——全部与设计一致，无附带破坏。task-board
+inode 损坏更可能是风暴/软重启的 fs 压力（9/3 已有先例），非本写所致。
+
+**黑屏归因（静态部分）**：
+1. `security_compute_av` @0xffffffc0088e0b30 实证：`ldarb w8,[state+2]; tbnz`
+   → **initialized = state+2，在清零窗内** → compute_av 早退 `allowed=0xFFFFFFFF,
+   auditallow=0` → **静默 allow-all，零 AVC 日志** → 排除"日志风暴打死系统"假说。
+2. 故黑屏只剩两个候选：**(a) 框架/厂商对 permissive 的反应**（watchdog/反篡改，
+   我们的裸写绕过了 status_page 同步，框架的 mmap 缓存仍是 enforcing=1，行为
+   不一致可能触发异常路径）；**(b) 风暴自诱导软重启**（9/3 无 E5 也发生过，
+   load 1067 历史）。**判定证据 = pstore**。
+3. 好消息：无日志洪泛 → E5 后系统安静，窗口足够长（现场 cat enforce 成功、
+   E5.out 心跳持续写出都证明进程侧存活）。
+
+## 七、mt75 行动序列（黑屏后修订版）
+
+0. **重启后第一件事（零成本）**：`ls /sys/fs/pstore; cat /sys/fs/pstore/console-ramoops*`
+   → 黑屏时刻的内核日志：见 system_server/watchdog → 框架反应(a)；见 oops/BUG
+   → 另查；无异常只有 avc 静默 → 更可能是(b)。
+1. **顺序反转：R 先行**（无副作用、7/7）：R 轮 → 子进程 CapEff 满确认 +
+   记录 R-child task 地址（status 首字段）。
+2. **E5 轮**：enforce=0 确认（cat 一下即可）。
+3. **C 轮立即跟**（E5 后 30s 内，同 R-child 8 分钟窗口）：`PC_OFF=0x778 +
+   PSELECT_TASK=<R-child task> + PSELECT_KO` → 预期 ROOT-SEEN + hostname=glroot
+   + ksu_done。permissive 暴露窗口缩到最小。
+4. **框架崩溃保险**：若 E5→C 之间 termux 被 framework 重启连坐（zygote 死杀
+   app，R-child 陪葬）→ 全链改从 **Shizuku/adb shell 跑**（adbd 原生进程，
+   活过 system_server 死亡；uid 同为 2000，配方不变，preload 部署到
+   /data/local/tmp）。Shizuku 本来就是现场前置条件，零额外成本。
+5. 判据汇总：`/proc/<R-child>/status` Uid: 0 0 0 + root_alive.txt + ksu_done.txt
+   + hostname=glroot + pstore。

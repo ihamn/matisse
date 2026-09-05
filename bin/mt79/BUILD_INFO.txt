@@ -1,0 +1,8 @@
+SHA256 preload.so: 75728bb8b2e31c4cb91165859016d0866635b3ba8a888cf00e96ad5333c9e85e
+BUILD_ENV: 同 mt78 (Termux clang 21.1.8, API 34, rm -rf build 全新构建)。
+mt79 (E5v3r2): E5v3 child 从 fake_lock 改为 ★page_base★(真页对齐)。
+  mt78 首轮(2026-09-06 01:11)实证 fake_lock 尾字节 0xd0 非页对齐, 运行时
+  校验器安全 ABORT(设计目标达成, 零事故)。
+  SPRAY(默认)=page_base → enforcing=0; SPRAY1=page_base+1 → E5R 还原;
+  0=E5v1 对照; 其它 ABORT。校验器不变(byte0∈{0,1}, byte2≠0)。
+  STORE(b) 污染页首 0xe80 布局零区(put64 布局从不写该区, 牺牲安全)。

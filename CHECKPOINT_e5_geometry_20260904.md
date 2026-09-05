@@ -142,3 +142,44 @@ inode 损坏更可能是风暴/软重启的 fs 压力（9/3 已有先例），�
    /data/local/tmp）。Shizuku 本来就是现场前置条件，零额外成本。
 5. 判据汇总：`/proc/<R-child>/status` Uid: 0 0 0 + root_alive.txt + ksu_done.txt
    + hostname=glroot + pstore。
+
+## 八、第二次黑屏 + 全面静态排查（2026-09-05，commit e4d6aba）
+
+**第二轮（mt75b）时间线**：E5 fork 模式，shot0 @t=51ms 即落地（enforce=0 实证）；
+mt51 误触发中止后续 shot（残留 env 监控了上一轮 R-child task=ffffff817420a500，
+CapEff 满 + euid=2000 + stage=R → "R mid-burst landing"——**E5 轮必须清掉
+stage/PSELECT_TASK 残留或禁 mt51**）；子进程心跳干净跑到 **poll 400（~80s）戛然而止**
+（E5v1 第一轮是 poll 250/50s 处 .out 结束）→ 黑屏 + 挂死 + 手动强制重启。
+~60-80s ≈ system_server watchdog 周期 → **杀手疑似 framework/watchdog，非写本身**。
+
+**静态排查三项（全部否定内核侧原因）**：
+1. **无 OEM 看门狗**：`scripts/find_state_xrefs.py` 扫全内核 159 个引用
+   `selinux_state[0..8)` 的函数，全部是 SELinux 自身机制（钩子/compute_av/
+   inode labeling/sel_*fs），无任何厂商函数读 enforcing 做重启。
+2. **清零窗无指针**：xref 仅物化 +0/+2/+7 三种字节偏移；avc 指针 @+0x48、
+   status_page/policydb 更靠后 → 8 字节零写不可能 NULL 解引用 panic。
+3. **initialized=0 不引发内核拒绝**：compute_av 早退 allowed=全 1（auditallow=0，
+   零日志）；may_create/exec 路径 `!initialized` 分支 = 跳过 labeling/保留旧 SID
+   继续（早期启动同款行为）——运行中进程与 exec 都不会因此挂。
+
+**推论**：黑屏由用户态触发（system_server/watchdog 检测 enforce=0 或
+"内核 permissive vs status_page enforcing=1"不一致后自毁，重启流程再挂死）。
+判定证据 = pstore（强制重启后仍保留）。
+
+## 九、E5v2 + E5R 行动方案（mt76，已入 main.c）
+
+- **E5v2**：`PSELECT_SELINUX_ENF=1`（可选 `PSELECT_SELINUX_ENF_VALUE=10000`），
+  写值 0x10000 = enforcing:0 + checkreqprot:0 + **initialized:1（保留）** +
+  policycap[0..4]:0（良性特性关闭）。policy 保持"已加载"，决策走正常
+  compute_av + permissive audit；framework 一致性最大化保留。
+- **E5R（恢复）**：同几何 `PSELECT_SELINUX_ENF_VALUE=10001` → enforcing=1 立即还原。
+- **序列**：R（先行，无副作用）→ E5v2 → C+KO（背靠背）→ **E5R**。
+  permissive 窗口 = 2 个风暴轮（~1-2 分钟）。若反制轮询周期 > 窗口 → 存活。
+- **现场第一步（零成本，重启后立刻）**：
+  `ls /sys/fs/pstore/ && cat /sys/fs/pstore/console-ramoops* 2>/dev/null | tail -100`
+  + `dmesg | grep -iE "watchdog|panic|system_server" | tail -40`
+  → 有 system_server/watchdog/自毁记录 → 用户态反制实锤，E5v2 缩窗是唯一路；
+  什么都没有 → 黑屏另有原因（vendor 模块？），E5v2 直接试。
+- **失败兜底**：若 E5v2 仍黑屏（反制轮询快于窗口）→ 放弃全局 permissive，
+  转 sid 修复路线（root 后用写原语改 init_cred.security 指向喷页假
+  task_security_struct，sid=shell —— 需要先解决 sid 号泄漏，另立项）。

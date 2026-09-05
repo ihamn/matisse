@@ -5,20 +5,21 @@
 ## 当前主目标
 CVE-2026-43499 临时 root → KernelSU。
 
-## 当前状态（2026-09-05）
-**E5 已现场落地**（enforce=0，commit 75b01e2）：mt74 几何实战成功，写足迹复核
-无附带破坏。副作用：随后黑屏一次。静态归因（CHECKPOINT_e5 §六）：
-`initialized@state+2` 同被清零 → compute_av 静默 allow-all（零 AVC 日志）→
-排除日志风暴；黑屏 = 框架对 permissive 反应 或 风暴软重启（9/3 先例），
-pstore 可判。剩余：按 §七 修订序列跑 R→E5→C→KO 全链。
+## 当前状态（2026-09-05 第二次黑屏后）
+E5v1（全零写）**2/2 黑屏挂死**，但 E5 本身 2/2 落地（enforce=0）。全面静态排查
+（CHECKPOINT_e5 §八）排除内核侧：无 OEM 看门狗（159 引用全 SELinux）、清零窗无
+指针、initialized=0 决策全放行。心跳 ~80s 处戛然而止 ≈ watchdog 周期 →
+**杀手在用户态**。已写 E5v2（保留 initialized=1）+ E5R（写回 enforcing=1）。
 
-## mt75 修订执行序列（细节 CHECKPOINT_e5 §七）
-0. 重启后先收 pstore：`cat /sys/fs/pstore/console-ramoops*`（黑屏归因）
-1. R 轮（PC_OFF=0x770）→ CapEff 满 + 记 R-child task
-2. E5 轮（PSELECT_SELINUX_ENF=1）→ enforce==0
-3. C 轮 30s 内跟上（PC_OFF=0x778 + PSELECT_TASK + PSELECT_KO）
-   → ROOT-SEEN + hostname=glroot + ksu_done
-4. 框架连坐保险：全链可改 Shizuku/adb shell 跑（adbd 活过 framework 死亡）
+## mt76 执行序列（细节 CHECKPOINT_e5 §九）
+0. **零成本第一步**：`cat /sys/fs/pstore/console-ramoops* | tail -100` +
+   `dmesg | grep -iE "watchdog|panic" | tail -40`（归因一锤定音）
+1. R 轮（PC_OFF=0x770）→ CapEff 满 + 记 R-child task（E5 轮清 stage/mt51 残留 env）
+2. E5v2 轮：`PSELECT_SELINUX_ENF=1`（默认值已改 0x10000 保留 initialized）→ enforce==0
+3. C 轮背靠背（PC_OFF=0x778 + PSELECT_TASK + PSELECT_KO）→ ROOT-SEEN + ksu_done
+4. **E5R 轮立即还原**：`PSELECT_SELINUX_ENF=1 PSELECT_SELINUX_ENF_VALUE=10001`
+   → enforce==1，permissive 窗口总计 ~1-2 分钟
+5. 若 E5v2 仍黑屏 → 反制轮询快于窗口 → 转 sid 修复路线（§九兜底，需 sid 泄漏另立项）
 
 ## E5 关键静态事实（2026-09-04 指令级）
 - **enforcing@selinux_state+0**（avc_denied+0x1c `ldarb [state]; tbz #0`，Android

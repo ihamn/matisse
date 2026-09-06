@@ -109,3 +109,28 @@ external)都会让内核 walk 这棵毒树 → prio_chain 解引用垃圾 → pa
 2. R 几何单发 10/11 — 引擎对单轮写完全可靠
 3. 下一步三选: (a) C 改 fork 模式(需先解扫描冻结) (b) 研究 R 毒化树的
    排毒/复用策略 (c) 每 boot 只打一轮 R+C 一次性组合(接受毒化风险)
+
+## ★★ 终版理论 (12:33): 毒化树随机涂抹器 — 三种后果统一解释
+
+### hostname EACCES 之谜 (用户直觉正确, 非 sidtab 全局损坏)
+- 判别: 同路径 boot_id 读取正常 (sidtab 全局损坏排除);
+  logcat 零条 hostname/sysctl avc (SELinux 拒绝排除);
+  stat+read 双 EACCES (proc_sys_permission 的 test_perm 失败 = 条目 mode 损坏)
+- 定位: kern_table 的 hostname ctl_table.mode 被野写改写(→0),
+  kern_table 在内核 .data — **正是我们全部写目标所在的 image-data dmap 窗口**
+
+### 统一机制
+R 轮 erase 留下毒化 freed-waiter 状态(child 的 rtmutex 域)。child 存活数小时,
+期间任何 futex/sched 唤醒都可能 walk 毒链 — rt_mutex_adjust_prio_chain 的
+遍历伴随写操作(prio 传播/waiter 摘挂) → **每次 walk = 一次随机内核涂抹**。
+后果三态:
+  a) 走到未映射垃圾 → kernel panic (11:29 实锤, x19=0x0008000000000000)
+  b) 涂抹伤及敏感结构 → framework 死 (01:18/08:44/12:23)
+  c) 涂抹落点无害化 → 静默累积 (kern_table.hostname.mode 即一例)
+每次 R 轮 = 埋一颗雷; child 活越久雷越多 → 今日系统逐步劣化完全可解释。
+
+### 设计修正
+1. ★信标通道换 uname -n★: /proc/sys/kernel/hostname 读路径已死(且不可靠),
+   uname -n 直读 utsname 无权限依赖 — mt73 验证一律改用 uname -n
+2. PSELECT_TASK 二次击打前必须校验 child 心跳新鲜度 (stale task = 随机写)
+3. R 落地后 child 应尽快退场(或 detox), 不留活雷

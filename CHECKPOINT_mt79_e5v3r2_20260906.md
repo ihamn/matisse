@@ -282,3 +282,22 @@ R 轮 erase 留下毒化 freed-waiter 状态(child 的 rtmutex 域)。child 存�
   → 所以 "C 可能已落地" 不是空想)
 - 历史数据回看: R 轮 CapEff 满 = real_cred 已换; 若某轮 C 也落地,
   child euid=0 — mt47 时代从未直接读过 child 的真实 Uid 行!
+
+## ★ KSU 官方文档研读结论 (18:3x) — .ko 适配判定 + 正确路线
+1. ★kernelsu_prep 里的 v3.2.5 .ko 不能用★: KSU 1.0+ 放弃非 GKI, v3.2.5 是
+   GKI 向构建; 符号校验实测 (206 依赖 vs 内核 __ksymtab_ 7179 条):
+   kallsyms_lookup_name/commit_creds/prepare_creds/selinux_state/
+   security_context_to_sid/path_mount/ksys_unshare/__put_cred 全部未导出
+   → finit_module 必在 Unknown symbol 失败, vermagic bypass 无济于事
+2. ★正确路线 (官方文档)★: 非-GKI 集成最后支持版本 = KSU v0.9.5;
+   把 KSU driver vendor 进 matisse 内核源码树 (kernel/setup.sh -s v0.9.5),
+   CONFIG_KSU=m 编出 kernelsu.ko (vermagic 5.10.209-android12-9),
+   经 root 窗口 insmod = 官方 late-load 模式 (安装页明文: 临时 root 可加载
+   LKM, 不刷 boot 不触发 AVB 不变砖)
+3. 未导出符号的解法: kprobe-based kallsyms 解析 (标准 rootkit 手法,
+   ~50 行; register_kprobe 已确认被内核导出 ✓)
+4. 前置: matisse 内核树可构建 (_research/android_kernel_xiaomi_matisse-main
+   在手; 构建环境 = 下次会话任务); 一定要能编出与设备内核一致的模块
+   (MODVERSIONS CRC 或 flags=3 绕过)
+5. 管理器 APK 已 pm install 成功 (18:20); 打开显示"不支持/未安装"属预期,
+   内核 .ko 装载后 manager 经 prctl 探测即转绿

@@ -1,0 +1,5 @@
+SHA256 preload.so: 107be04451740d0f941c9d2ce09dbb425e72085851b58bce4e0620e08a17b734
+mt83: burst 循环去 break — 首发对 waiter tid 的 sched 可能内核漫步 ~30s
+  (PI 链堆积), ret=0 后原代码 break 吞掉后续 owner tid 的 sched = 整个
+  写路径 (V7 轮实证落点 30030ms 后直接 no root)。现在 5 发全打。
+  使用配套: PSELECT_WINDOW_SECONDS=60 (第一发漫步 ~30s 须在窗内返回)。

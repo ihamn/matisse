@@ -504,7 +504,10 @@ void *slide_consumer_thread(void *arg __attribute__((unused))) {
       if (ret == 0) {
         best_ret = 0;
         best_errno = 0;
-        break;
+        /* mt83: 不再 break — 首发对 waiter tid 的 sched 可能内核漫步
+         * ~30s (PI 链堆积), 而 owner tid 的 sched 才是驱动毒树 walk/
+         * rb_erase 的写路径; break 会把写路径整个吞掉 (V7 轮实证:
+         * 落点 30030ms 后直接 no root)。5 发全打, 每发独立计时。 */
       }
       if (best_ret != 0) {
         best_ret = (int)ret;

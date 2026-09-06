@@ -47,3 +47,31 @@
   8/8 稳定, 即使 E5 失败仍有 R-child 可打 C 信标; ④ 轮间冷却 3-5 分钟。
 - E5v3r2 几何本身已验证正确 (第 1 轮 mt79 打印: enforcing=00
   initialized@+2=36, 校验器放行, 触发链全绿) — 只欠一个稳定的执行环境。
+
+## 理论分析定案 (10:58): E5 三连卡死 = kill_child waitpid 阻塞, 非几何非回归
+
+### 证据链
+1. git 考古: 27d06cc(mt77 构建) 之后引擎源码零改动 → mt78/79 构建 ≈ mt77 构建,
+   kernelsnitch.h 同为 exploit/src 的 7月16日版(mt61 配方同一来源) → 排除构建回归
+2. 卡点定位: 三次卡死输出都停在 "found 3 collisisons"(leak child 的最后一句,
+   ks->state 已置 COLLISIONS_FOUND, find_collisions 已完成) — 父进程的
+   "spray children killed" 再未出现 → 父进程卡在 post/spray kill 循环
+3. kill_child (util.c:487): kill(SIGKILL) + **阻塞 waitpid**。34 个 spray
+   子进程 + 543 克隆峰值 + 内存压力 → SIGKILL 的子进程困在 D 状态
+   (futex/memfd 不可中断内核路径) 不死 → waitpid 无限等
+4. 三种 rc 形态全部解释: rc=124(08:29, sleep180/timeout250 阻塞到超时);
+   rc=0(10:47, 构造器在后台线程, sleep130 主线程到点 exit(0) 把阻塞线程
+   一起带走); rc=255(08:11, 校验器 ABORT 预期路径)
+5. 源码自认: util.c:862 注释 "ks collision finding is flaky/slow"
+6. mt77 为何能过: E5v2 当晚通过扫描 → D 状态排空时间是概率性的, 与系统
+   内存状态强相关; 今日 12h uptime + swap 压力下恶化
+
+### 修复方向 (择一或组合)
+A. 【零代码】给足时间: E5 轮 sleep 350/timeout 400, 赌 D 状态最终排空
+B. 【代码】kill_child 改非阻塞: 先全部 kill, 再 WNOHANG 轮询收尸 + 有界
+   等待(如 30s), 超时放弃 reap 继续推进(waitpid 只为防僵尸, 不阻塞主流程)
+C. 【代码】减少克隆规模 (272+204+33+34 → 砍半), 降低 D 状态堆积概率
+
+### 判别实验
+A 跑一轮: 若 400s 内完成 → 阻塞有限, 方案 A 即可; 仍冻结 → 阻塞无限,
+必须上方案 B (WNOHANG 补丁)。

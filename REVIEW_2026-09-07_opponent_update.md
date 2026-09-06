@@ -80,3 +80,22 @@
 4. 归档 C2.out + cstrike_log.txt + R.out（本轮写侧证据全丢，只剩读侧）。
 5. KSU 侧（获授权后）：root 窗口先试 flags=0/3 加载官方 .ko，把确切
    errno + Unknown symbol 清单落盘，再开工源码重建。
+
+## 7. 补充考古（09-06 晚）：matisse 内核树其实一直有非官方完整镜像
+- MiCode 全 493 refs 复扫确认无 matisse（263 heads + 230 其他，兄弟机型
+  rubens/diting/mondrian/xaga 均在，唯 matisse 缺席；GPL 讨债 issue
+  2023 至今无回应）。
+- **sekaiacg/android_kernel_xiaomi_matisse（GitHub，活着）= 完整树**：
+  单 commit `matisse-s-oss`（2022-07-26，命名与 MiCode 分支惯例一致，
+  系被删 MiCode 分支的快照）；标准目录齐全 + build.config.mtk.*；
+  MT6983/天玑9000 + matisse 传感器字样 = K50 Pro 真身；5.10.81。
+- 我们 2026-08-14 就用过它（`_research/matisse_kernel_src.tar.gz`，
+  rbtree_matisse.c 即出自此树）——本地是"14 目录分析提取残缺版"，
+  沙盒重置已丢，**重 clone 即可，无需拼合 kernel.org**。
+- ★关掉待办「gitcode 深搜 mikrn defconfig 出处」：树内就有
+  `matisse_defconfig` / `mikrn_matisse_defconfig` /
+  `mikrn_matisse_stability_defconfig`（另含 rubens/xaga/daumier 全家）。
+  注意两者均为 MTK 平台碎片，核心 CONFIG（MODULES/SIG/KPROBES）在
+  build.config.mtk.aarch64 链；运行内核的最终真值以设备 /proc/config.gz 为准。
+- 版本差警示：5.10.81（发布期）vs 运行 5.10.209-android12-9——结构偏移
+  已有设备侧实测值兜底（cred@0x778/0x780、selinux_state 等）。

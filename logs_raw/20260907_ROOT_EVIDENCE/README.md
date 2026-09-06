@@ -1,3 +1,13 @@
+
+# ⚠️⚠️ 撤回声明 (2026-09-07 对面复核后) ⚠️⚠️
+本归档的 "ROOT 证据" 判定**无效**: /proc/PID/status 的 Uid 四元组全部读
+task+0x778 (real_cred) — 指令级核验 get_task_cred @0xffffffc008184804
+(add x9,x0,#0x778; ldar x19,[x9])。观测到的
+Uid: 4294967168 0 0 0 / CapEff 满 = **第 13 次 R 落地铁证** (real_cred=
+init_cred), 不能证明 cred(主观) 已换 → **不是 root**。
+本文件保留为 R-landing 证据; C 落地判定需走 getresuid(主观) /
+sethostname 信标 / root_alive.txt(仅 setresuid 后可写)。
+详见 REVIEW_2026-09-07_opponent_update.md §2-3。
 # ★ ROOT 证据 — CVE-2026-43499 matisse 提权成功 (2026-09-07 00:52 前夜锁存)
 
 ## 判据 (shell 直读 /proc/19735/status, readproc 组, 不可伪造)

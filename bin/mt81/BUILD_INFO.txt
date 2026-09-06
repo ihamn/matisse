@@ -1,0 +1,5 @@
+SHA256 preload.so: f200d41253df3b92863438d20e6ae5d09a3ac9424bbc831843111948765a2397
+mt81: 消费者心跳诊断 — slide.c consumer 自旋循环每 ~2s 打一行
+  mt81: consumer seq=%d seen=%d stop=%d route_done=%d calls=%d tid=%d
+  用途: 活体定位 E5 fork 轮消费者 burst 为何永不发射 (窗口期空转 30s)。
+  与 mt80 唯一差异 = 心跳打印; 几何/时序零改动。

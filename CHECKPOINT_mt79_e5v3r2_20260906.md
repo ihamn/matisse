@@ -193,3 +193,26 @@ R 轮 erase 留下毒化 freed-waiter 状态(child 的 rtmutex 域)。child 存�
   找消费者 burst 的触发条件为何在窗口内永不满足
 - E5 现状: 引擎机械全通, 唯一缺口 = 消费者 burst 时序; 这是纯用户态 bug,
   不再涉及内核风险, 修复成本 = 一次代码审读 + 一轮验证
+
+## ★ 14:40 硬停决定 + 今日终账
+- mt81 诊断轮 (E5 fork, 单写, 心跳仪器化) 再次导致整机重启 — 第 3 次
+  kernel panic, 全部发生在 E5 fork 轮的扫描/风暴期
+- ★结论: KernelSnitch 扫描 methodology 在本机 = panic 抽奖 (今日 3/7)★
+  与参数无关 (8att/1att/20s/30s 窗口/内外部模式全试过)。根因未明
+  (疑似 500+ 克隆的 futex pile-up 踩 rtmutex PI 状态), 静态分析无法
+  再推进 — 需要的是内核侧证据 (pstore 栈已收集 2 份, 均 prio_chain)
+- 全部武器已停; /data/local/tmp 上等待读取: H.out (mt81 心跳 — 若轮次
+  走过扫描期, 心跳会回答消费者问题; 若死于扫描期则只有前段日志)
+
+## 下次会话路线 (按优先级)
+1. [零成本] 拉 H.out 读 mt81 心跳 — 消费者问题可能已有答案
+2. [决策] E5 路线三选:
+   a. 修消费者后继续 fork 轮 (接受 ~40% panic 抽奖, 每轮 = 一次重启)
+   b. 降低扫描风险再试 (克隆减半/thread_cnt 降/轮间距拉长) — 未验证
+   c. E5 彻底 park (09-05 手册先例), root 走 C 路线: C 也在同一风暴里,
+      扫描风险相同 → 本质是"风暴 = 风险"的接受度问题
+3. [无论选择] root 判据 = uname -n; 证据落盘 = root_alive.txt; 崩了不亏
+## 铁律新增
+- 开火前必查档案死刑清单 (mt49 同进程重试/本次 KernelSnitch panic)
+- 同一轮次累计失败 ≥2 次 → 强制停, 不许"再试一把"
+- framework 软重启后必清扫残留进程 (orphan sleep/preload)

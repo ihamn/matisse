@@ -216,3 +216,20 @@ R 轮 erase 留下毒化 freed-waiter 状态(child 的 rtmutex 域)。child 存�
 - 开火前必查档案死刑清单 (mt49 同进程重试/本次 KernelSnitch panic)
 - 同一轮次累计失败 ≥2 次 → 强制停, 不许"再试一把"
 - framework 软重启后必清扫残留进程 (orphan sleep/preload)
+
+## ★★ 14:45 H.out 心跳破案: 消费者无辜, FWRQ 分钟级延迟才是真凶
+- mt81 心跳 (15312 行): 消费者全程 seq=0 seen=0 规矩等待 — 从未被饿、
+  从未坏掉; mt61 窗口行在日志最末尾 (waiter 线程 FWRQ 实际阻塞分钟级,
+  3s 超时变分钟 = KernelSnitch 堆积桶 4096 futex 的桶锁/PI 竞争)
+- 窗口开启后 ~2 拍内即死 (panic/重启) — 消费者第一发 burst 都没来得及打
+- 候选 bug #2: 消费者 `seen` 为线程生命周期局部变量, 首次 publish 后
+  seen=1 永不复位 → 多 attempt 轮后续 publish 全被 seq==seen 吞掉
+  (解释 13:04 轮 8 attempt 仅末次 close+28ms 一行 mt19b; 若线程为
+  每 attempt 新建则此候选作废 — 待查 pthread_create 调用位置 line 837)
+- ★修复方向排序★:
+  1. FWRQ 延迟: 触发序列整体分钟级推迟是主敌 — 选项: waiter 线程改
+     futex 等待为带唤醒重试/缩短堆积窗口/查桶锁竞争源
+  2. seen 复位: 消费者循环加 `if (seq==0) seen=0;` (一行, 恢复多轮响应)
+  3. 消费者唤醒改 futex 事件驱动 (替代 yield 自旋, 顺带消灭空转烧核)
+## 状态: 引擎机械全通已三度证实; 现在是两个已定位的用户态 bug
+  (FWRQ 延迟 + seen 复位), 都是坐下来可修的代码, 不再需要抽奖

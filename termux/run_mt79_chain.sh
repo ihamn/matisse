@@ -10,7 +10,7 @@ if [ "${LOAD_INT:-99}" -gt 15 ]; then echo "load gate refuse: $LOAD"; exit 2; fi
 echo "=== mt79 chain start $(date +%H:%M:%S) preload=$(sha256sum $OUTD/preload.so | cut -d' ' -f1)" > $LOG
 pkill -9 -x sleep 2>/dev/null; pkill -9 -f 'while :; do' 2>/dev/null
 am kill-all 2>/dev/null
-rm -f $OUTD/mt49_child_status.txt $OUTD/root_alive.txt $OUTD/R.out $OUTD/E5.out $OUTD/C.out $OUTD/E5R.out
+rm -f $OUTD/mt49_child_status.txt $OUTD/root_alive.txt $OUTD/R.out $OUTD/E5.out $OUTD/C2.out $OUTD/E5R.out
 
 echo "--- R round (CPU6) ---" >> $LOG
 timeout 250 env \
@@ -50,10 +50,10 @@ timeout 170 env \
   PSELECT_SKIP_WARMUP=1 PSELECT_WAIT_SECONDS=120 \
   PSELECT_WAITER_WAKE_SECONDS=3 PSELECT_WINDOW_SECONDS=20 \
   PSELECT_NO_CANARY=1 \
-  LD_PRELOAD=$OUTD/preload.so /system/bin/sleep 130 > $OUTD/C.out 2>&1
+  LD_PRELOAD=$OUTD/preload.so /system/bin/sleep 130 > $OUTD/C2.out 2>&1
 echo "C rc=$? enforce=$(getenforce) hostname=$(cat /proc/sys/kernel/hostname)" >> $LOG
 echo "C status=$(cat $OUTD/mt49_child_status.txt 2>/dev/null)" >> $LOG
-grep -a "mt48: PTR\|mt51:\|ROOT-SEEN\|mt73\|sethostname" $OUTD/C.out | sed 's/\x1b\[[0-9;]*m//g' | head -8 >> $LOG
+grep -a "mt48: PTR\|mt51:\|ROOT-SEEN\|mt73\|sethostname" $OUTD/C2.out | sed 's/\x1b\[[0-9;]*m//g' | head -8 >> $LOG
 cat $OUTD/root_alive.txt 2>/dev/null >> $LOG
 
 if [ "$E5ENF" = "Permissive" ]; then

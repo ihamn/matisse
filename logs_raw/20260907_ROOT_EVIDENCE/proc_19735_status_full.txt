@@ -1,0 +1,51 @@
+Name:	sleep
+Umask:	0000
+State:	S (sleeping)
+Tgid:	19735
+Ngid:	0
+Pid:	19735
+PPid:	1
+TracerPid:	0
+Uid:	4294967168	0	0	0
+Gid:	0	0	0	0
+FDSize:	1024
+Groups:	 
+VmPeak:	 2226064 kB
+VmSize:	 2225932 kB
+VmLck:	       0 kB
+VmPin:	       0 kB
+VmHWM:	    1660 kB
+VmRSS:	    1660 kB
+RssAnon:	     888 kB
+RssFile:	     772 kB
+RssShmem:	       0 kB
+VmData:	   13200 kB
+VmStk:	     136 kB
+VmExe:	     296 kB
+VmLib:	    4280 kB
+VmPTE:	      80 kB
+VmSwap:	       0 kB
+CoreDumping:	0
+THP_enabled:	1
+Threads:	1
+SigQ:	0/43333
+SigPnd:	0000000000000000
+ShdPnd:	0000000000000000
+SigBlk:	0000000080000000
+SigIgn:	0000002000000000
+SigCgt:	0000004c400084f8
+CapInh:	0000000000000000
+CapPrm:	000001ffffffffff
+CapEff:	000001ffffffffff
+CapBnd:	000001ffffffffff
+CapAmb:	0000000000000000
+NoNewPrivs:	0
+Seccomp:	0
+Seccomp_filters:	0
+Speculation_Store_Bypass:	thread vulnerable
+Cpus_allowed:	01
+Cpus_allowed_list:	0
+Mems_allowed:	1
+Mems_allowed_list:	0
+voluntary_ctxt_switches:	5955
+nonvoluntary_ctxt_switches:	4170

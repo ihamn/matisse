@@ -75,3 +75,37 @@ C. 【代码】减少克隆规模 (272+204+33+34 → 砍半), 降低 D 状态堆
 ### 判别实验
 A 跑一轮: 若 400s 内完成 → 阻塞有限, 方案 A 即可; 仍冻结 → 阻塞无限,
 必须上方案 B (WNOHANG 补丁)。
+
+## ★ 11:38 定案: 第二触发轮踩爆 R 毒化 PI 链 — kernel panic 实锤 (pstore)
+
+### panic 现场 (11:28:46, boot b07e72d1, uptime 3046s)
+- bootreason=kernel_panic (本次非 longkey)
+- pc: rt_mutex_adjust_prio_chain+0x9fc/0x1948, Oops 96000004
+- 坏指针: x19=0x0008000000000000 (被遍历的 waiter 节点=垃圾), x8=x19+0x40
+- x1/x27 = 0xffffff811a0a84d0/8 = 喷页 fake_lock (base+0x4d0 特征吻合)
+- x25/x5 = 0xffffff8116ba64xx (同喷页区) — PI 链正在穿我们的假锁区
+- 触发者 T628728 = 探针轮(E5 external, PSELECT_TASK=<11:15 链的 R child>)
+
+### 机制
+R 轮 erase 后, R-child 的 rtmutex waiter/PI 树里留着我们的假节点(部分词
+已写/部分垃圾)。对该 child 的**任何第二次 futex/rtmutex 触发**(C/E5
+external)都会让内核 walk 这棵毒树 → prio_chain 解引用垃圾 → panic。
+0x0008000000000000 = 半成品 waiter 词(部分 fd_set 覆写残留)。
+
+### 今日全部崩溃归因(重排)
+| 时间 | 轮次 | 结果 |
+|---|---|---|
+| 01:18 | C external on R-child (R 01:10 落地) | framework 死 (软重启#1) |
+| 08:44 | 链 C 阶段 on R-child (R 08:10 落地) | framework 死 (软重启#2) |
+| 11:29 | E5 probe external on R-child (R 11:18 落地) | **kernel panic** |
+→ 三次全是"对已毒化 child 的二次触发"; 与 E5 写本身无关(从未发射)。
+
+### 剩余独立谜团
+- KernelSnitch 扫描冻结 (fork/standalone 4/4): kill_child 补丁无效,
+  父线程在 pre/post kill 区间静默失联, 机制未明 — 需活体 wchan 解剖
+
+### 战略结论
+1. §6.4 的 R→E5→C→E5R 同 child 背靠背链在本内核上**结构性不安全**, 废止
+2. R 几何单发 10/11 — 引擎对单轮写完全可靠
+3. 下一步三选: (a) C 改 fork 模式(需先解扫描冻结) (b) 研究 R 毒化树的
+   排毒/复用策略 (c) 每 boot 只打一轮 R+C 一次性组合(接受毒化风险)

@@ -1,0 +1,7 @@
+[ 3046.542522][T628728] Unable to handle kernel paging request at virtual address 0008000000000040
+[ 3046.542532][T628728] Mem abort info:
+[ 3046.542534][T628728]   ESR = 0x96000004
+[ 3046.542537][T628728]   EC = 0x25: DABT (current EL), IL = 32 bits
+[ 3046.542538][T628728]   SET = 0, FnV = 0
+[ 3046.542540][T628728]   EA = 0, S1PTW = 0
+[ 3046.542541][T628728] Data abort info:

@@ -159,3 +159,21 @@ R 轮 erase 留下毒化 freed-waiter 状态(child 的 rtmutex 域)。child 存�
 - mt80 引擎 + kill_child 非阻塞补丁在位; 信标改 uname -n 配方就绪
 - 下次会话动作: ① 读 W30.out 判别饥饿类型 ② 按判别结果修 consumer 调度
   ③ E5 fork 轮重打 (fresh boot + 窗口修正) ④ 落地即 uname -n 验证信标
+
+## ★ 终极归因 (13:30): 30s 窗口 panic = 同进程重试毒化 (mt49 铁律重现)
+- bootreason=kernel_panic, pc=rt_mutex_adjust_prio_chain+0x1788 —
+  与 PSTORE_TRACE_2026-08-16 (mt49) 完全同款, 触发路径 rt_mutex_adjust_pi←sched_setattr
+- test_mt49_root.sh 头部早有铁律: "同进程多 attempt 已判死(pstore): 二触后
+  任何 sched_setattr → prio_chain 崩" — E5/CRED 模式 8 attempt 循环 = 7 次
+  进程内重试, 必崩。本次设计时未重读此约束, 教训: 开火前必查档案死刑清单
+- 30s 窗口判别实验实际"成功": 消费者进窗了(sched 在窗口内执行), 饥饿已修 —
+  但暴露更深层: attempt N 的毒 waiter 被 attempt N+1 的 sched 踩爆
+- ★E5 正确形态: 单进程单写 (1 attempt) — R 轮 11/13 安全正是这个原因★
+- 20s 窗口时代的 "miss" 本质 = mt66 护栏拒绝盲写 = 系统自保, 不是故障
+
+### 下次会话唯一主线
+1. 读 W30.out (/data/local/tmp 跨重启保留): 确认 attempt 1-2 是否已在窗内
+   开火(写入是否发射)
+2. E5 单 attempt 化 (PSELECT_CRED 的 8-attempt 循环对 E5 无意义, 砍到 1)
+3. fresh boot + 30s 窗口 + 单 attempt → E5 首次有意义的落地判定
+4. 信标验证一律 uname -n

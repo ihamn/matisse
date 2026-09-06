@@ -301,3 +301,21 @@ R 轮 erase 留下毒化 freed-waiter 状态(child 的 rtmutex 域)。child 存�
    (MODVERSIONS CRC 或 flags=3 绕过)
 5. 管理器 APK 已 pm install 成功 (18:20); 打开显示"不支持/未安装"属预期,
    内核 .ko 装载后 manager 经 prctl 探测即转绿
+
+## KSU 适配工程计划 (终版, 符号校验实证)
+- v3.2.5 .ko 终审: 206 依赖中 71 个未导出 (commit_creds/prepare_creds/
+  override_creds/kallsyms_lookup_name/path_mount/ksys_unshare/全套
+  SELinux policy 族...) — finit_module 必失败, 无 bypass 可能
+- 全部 71 符号均在 kallsyms 有名字 ✓ → kprobe 引导解析路径可行:
+  bootstrap = register_kprobe("kallsyms_lookup_name") 取地址 → 解析 71 符
+  号 → KSU 源码改造: 直接调用改函数指针
+- 构建: matisse 树 (5.10.81 MiCode base, 完整树待获取 — 本地 14 目录为
+  分析提取残缺版; 完整源 = gitcode/ghproxy 拉小米 MiCode matisse 分支,
+  CN 直连待试) + KSU v0.9.5 driver + CONFIG_KSU=m → kernelsu.ko
+- 加载: root 窗口 + mt85 预开 fd + finit_module flags=3 (CRC 绕过;
+  符号解析全部走 kprobe 内部路径不经内核导出表)
+- 结构偏移风险: 5.10.81 vs 5.10.209-MTK task_struct 布局差异 → KSU 直接
+  字段访问需用已验证偏移 (cred@0x778/0x780) 手工校正
+- manager: v0.9.5 APK 需下载配对 (v3.2.5/v3.3.0 UAPI 不匹配 v0.9.5 内核)
+- 狩猎脚本: ~/ksu_hunt.sh (用户 Termux 一行启动, 自动掷 c-strike +
+  Uid/uname/ksu_done 三重判据)

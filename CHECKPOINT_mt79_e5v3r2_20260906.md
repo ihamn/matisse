@@ -177,3 +177,19 @@ R 轮 erase 留下毒化 freed-waiter 状态(child 的 rtmutex 域)。child 存�
 2. E5 单 attempt 化 (PSELECT_CRED 的 8-attempt 循环对 E5 无意义, 砍到 1)
 3. fresh boot + 30s 窗口 + 单 attempt → E5 首次有意义的落地判定
 4. 信标验证一律 uname -n
+
+## ★ 13:58 活体解剖: 窗口期线程现场 (wchan2_dump, pid=32579)
+30s 窗口期 (13:54:05-13:54:26 三连拍):
+  tid=25525 do_select S   ← pselect 阻塞中
+  tid=25526 nanosleep S   ← 看门狗
+  tid=25527 wchan=0 R     ← ★全程空转烧核, 零 sched 日志★
+  tid=32579 nanosleep S   ← 主线程
+- 单写 1/1 ✓ (RETRY=1 修复生效, 无 panic, boot 不变)
+- 判别定案: 30s 窗口 sched 落点 30028ms = 窗口关闭+28ms — 结构性, 与窗口
+  长度无关 (20s→20.02s, 30s→30.03s)
+- 矛盾点: 消费者设计 = 窗口+50ms 打 6 发 sched 突发 (enter_delay=50000usec),
+  但窗口期一行 mt19b 都没有 → 消费者从未进入 burst 代码; 25527 在空转什么?
+- 下次会话开场任务: 读 slide.c/main.c 线程创建架构, 映射 tid 角色表,
+  找消费者 burst 的触发条件为何在窗口内永不满足
+- E5 现状: 引擎机械全通, 唯一缺口 = 消费者 burst 时序; 这是纯用户态 bug,
+  不再涉及内核风险, 修复成本 = 一次代码审读 + 一轮验证

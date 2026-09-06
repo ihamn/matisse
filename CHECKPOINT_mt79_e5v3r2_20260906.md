@@ -319,3 +319,14 @@ R 轮 erase 留下毒化 freed-waiter 状态(child 的 rtmutex 域)。child 存�
 - manager: v0.9.5 APK 需下载配对 (v3.2.5/v3.3.0 UAPI 不匹配 v0.9.5 内核)
 - 狩猎脚本: ~/ksu_hunt.sh (用户 Termux 一行启动, 自动掷 c-strike +
   Uid/uname/ksu_done 三重判据)
+
+## KSU 管理器配对完成 (18:44)
+- v0.9.5 manager (KernelSU_v0.9.5_11872-release.apk) 已 pm install ✓
+  (v3.2.5 已卸载; 降级路径: 先卸后装, -d 降级被 Android 14 拒)
+- v0.9.5 android12-5.10_kernelsu.ko 已下载 + 符号校验: 94 依赖中 29 缺
+  (SELinux policy 族 + groups/kallsyms/path_umount 杂项) — 比 v3.2.5 的
+  71 缺大幅改善, 且 cred 机制全家(commit_creds 等)已自解决
+- 剩余工程: 29 符号的 kprobe 解析补丁 + matisse 完整内核树获取 +
+  模块构建。完成后链路 = c-strike root 窗口 → finit_module (mt85 预开fd)
+  → ksud → manager 转绿
+- api.github.com 直连可用 (github.com 被墙不影响) — 资源下载通道已验证

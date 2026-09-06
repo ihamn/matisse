@@ -5,6 +5,15 @@
 ## 当前主目标
 CVE-2026-43499 临时 root → KernelSU。
 
+## ⚠️ 2026-09-07 复核定案（对面大更新 28 提交）
+- **R 落地 13 连中铁证；"C confirmed/ROOT 到手"判据无效必须撤回**：
+  /proc/status 全字段读 real_cred（task_state→get_task_cred→task+0x778，
+  指令级复核），C 写的 0x780 结构性不可见。有效 C 判据只有 child getresuid
+  门控 / uname -n=glroot / ksu_done。详见 `REVIEW_2026-09-07_opponent_update.md`。
+- KSU 计划：v0.9.5 资产/kallsyms 符号/MiCode 无 matisse 均实证为真；
+  但 flags=3 绕不过 Unknown symbol，必须源码重建（selinux_state 是数据符号）。
+- 下一步：mt85 build 重打 c-strike（R child 20min 门控），KO 装填需用户授权。
+
 ## ⚠️ E5v2 重启根因已破案（2026-09-05 深夜，交接前最后推导）
 **E5v2/E5R 的重启是我方 mt76 设计 bug，非 framework 反制**：写值 0x10000 放在
 TREE_RIGHT(word1)=child → child≠0 触发 STORE(b) `*(0x10000)=pc` → 对未映射

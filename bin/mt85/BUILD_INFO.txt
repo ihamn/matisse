@@ -1,0 +1,6 @@
+SHA256 preload.so: 893e0ad7ea576cbf13c32a8ac456775526c0f3a6c6b6512c79d15933201a4e7e
+mt85: KO fd 预开 — C 落地后 child 致盲 (kernel SID 拒一切文件 I/O),
+  open(ksu.ko) 必失败 → finit_module 永无执行机会。改为 R 落地后、
+  致盲前预开 fd, gate 触发时用已持有 fd 直接 finit_module。
+  (fd 权限在打开时校验, 不随后续 SID 变化)
+  配套: PSELECT_KO=/data/local/tmp/ksu.ko + PSELECT_CHILD_POLLS=6000

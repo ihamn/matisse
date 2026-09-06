@@ -233,3 +233,14 @@ R 轮 erase 留下毒化 freed-waiter 状态(child 的 rtmutex 域)。child 存�
   3. 消费者唤醒改 futex 事件驱动 (替代 yield 自旋, 顺带消灭空转烧核)
 ## 状态: 引擎机械全通已三度证实; 现在是两个已定位的用户态 bug
   (FWRQ 延迟 + seen 复位), 都是坐下来可修的代码, 不再需要抽奖
+
+## ★ 15:05 V.out 破案: 触发机制在 leak child 里, 消费者 CPU6 被剥夺 30s
+- slide_child_leak_stext() (slide.c:857) = waiter/owner/consumer 三线程
+  的宿主 — 整个触发机制在 fork 出的 leak child 进程里跑
+- mt82 跳变行: child 消费者 t=0ms 即见 seq 0->1 (发布零延迟, 发布机制
+  完全正常!) 但 burst 打在 t=30031ms — 中间 30s 被剥夺 CPU (pin CPU6)
+- 双消费者读数差解释: 心跳 tid=26780 (seq=0 永远) = 另一进程的消费者
+  (身份待映射); 两者内存独立所以读数不同
+- ★下一试验 (纯 env, mt82 二进制不变): PSELECT_CONSUMER_CPU=7
+  (X2 prime) — 把消费者挪离被压死的 CPU6。若 mt19b 落在窗口内
+  (t≈50-100ms) → 写发射 → enforce=0

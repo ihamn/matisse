@@ -40,7 +40,11 @@ timeout 250 env \
   PSELECT_WAITER_WAKE_SECONDS=3 PSELECT_WINDOW_SECONDS=20 \
   PSELECT_NO_CANARY=1 \
   LD_PRELOAD=$OUTD/preload.so /system/bin/sleep 180 > $OUTD/C2.out 2>&1
+CPID=$(grep -a "child pid" $OUTD/R.out 2>/dev/null | tail -1 | sed 's/.*child pid=\([0-9]*\).*/\1/')
 echo "C rc=$? enforce=$(getenforce) hostname=$(cat /proc/sys/kernel/hostname)" >> $LOG
+echo "child=$CPID Uid-line:" >> $LOG
+cat /proc/$CPID/status 2>/dev/null | grep -E "^(Name|State|Uid|Gid|CapEff)" >> $LOG
+echo "child-alive=$(ls /proc/$CPID/status 2>/dev/null && echo YES || echo DEAD)" >> $LOG
 grep -a "mt48: PTR\|mt51:\|ROOT-SEEN\|mt73\|hostname" $OUTD/C2.out 2>/dev/null | sed 's/\x1b\[[0-9;]*m//g' | head -8 >> $LOG
 
 echo "--- evidence poll 120s ---" >> $LOG

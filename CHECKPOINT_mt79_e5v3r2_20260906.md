@@ -330,3 +330,19 @@ R 轮 erase 留下毒化 freed-waiter 状态(child 的 rtmutex 域)。child 存�
   模块构建。完成后链路 = c-strike root 窗口 → finit_module (mt85 预开fd)
   → ksud → manager 转绿
 - api.github.com 直连可用 (github.com 被墙不影响) — 资源下载通道已验证
+
+## 脚本交付状态 (19:0x) — 用户可独立运行
+- ★Termux 一行启动: bash ~/ksu_hunt.sh★ (默认 20 轮, 参数可调)
+- 弹药: /data/local/tmp/{preload.so=mt85, ksu.ko=v0.9.5, ksu_manager.apk=v0.9.5(已装),
+  ksu_done.txt(成功标志), root_alive.txt(root标志), cstrike_log.txt(状态机日志)}
+- 判据链: /proc/modules 含 ksu → KSU 装载; child /proc/PID/status Uid euid=0 → root;
+  uname -n=glroot → 信标; 脚本任一命中即停
+- ★ROOT 证据已单独归档 logs_raw/20260907_ROOT_EVIDENCE/ (95c1015)★
+## matisse 内核源结论
+- MiCode 公开仓库前 15 页 (1500 分支) 无 matisse 分支 → K50 Pro 内核源未公开
+- 替代路线 (下次): ①本地残缺 5.10.81 树 + kernel.org 5.10.81 完整包 (tuna 镜像
+  CN 直连) 拼合 → modules_prepare → KSU v0.9.5 模块构建 (结构偏移风险已记)
+  ②gitcode 深搜 mikrn defconfig 出处 ③直接找 K50 Pro 内核源的非官方镜像
+## 环境备注
+- Shizuku 今日三连掉 (崩一次掉一次); 每次恢复后 rish 直接可用
+- rish 通道卡死时: pkill -f rish 清残留立即恢复 (binder 被占)

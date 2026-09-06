@@ -346,3 +346,20 @@ R 轮 erase 留下毒化 freed-waiter 状态(child 的 rtmutex 域)。child 存�
 ## 环境备注
 - Shizuku 今日三连掉 (崩一次掉一次); 每次恢复后 rish 直接可用
 - rish 通道卡死时: pkill -f rish 清残留立即恢复 (binder 被占)
+
+## ★ 判据体系终版 (对手复核后全面修正)
+### status Uid 行 = C 判据作废 (指令级)
+get_task_cred @0xffffffc008184804 读 task+0x778 (real_cred) — task_state
+的 Uid 四元组/Cap* 全部来自 real_cred → 该通道只能证 R, 对 C 零信息量。
+原 ROOT_EVIDENCE 已撤回 (保留为第 13 次 R 落地铁证)。
+### C 落地五层有效判据 (全部读主观 cred 或落盘)
+1. child 日志 mt47: ROOT-SEEN ... euid=0 (getresuid=主观)
+2. child 日志 mt47: after setres uid=0 euid=0 (setresuid 后复核)
+3. root_alive.txt 落盘 (setresuid 后干净 cred 可写)
+4. uname -n = glroot (mt73 信标, capable 走主观 cred)
+5. /proc/modules 含 ksu (finit_module = KSU 持久化终局)
+### E5v3 窗口吸收信标风险
+新 c-strike 序列 E5v3 在 C 之前 → C 落地发生在 permissive 窗口内 →
+信标/root_alive 的 SELinux 风险被窗口吸收; E5R 在 KO 装载后还原。
+### 狩猎脚本 v2
+~/ksu_hunt.sh 判据已换为上述 1/3/5 (弃用 status Uid 通道)。

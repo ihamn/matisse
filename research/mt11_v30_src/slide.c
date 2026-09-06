@@ -409,8 +409,35 @@ void *slide_consumer_thread(void *arg __attribute__((unused))) {
   }
 
   int seen = 0;
+  int mt81_beat = 0;
+  int mt81_last_seq = 0;
   for (;;) {
     int seq = atomic_load(&slide_consume_go);
+    /* mt81: 消费者心跳 — 每 ~2s 打一行门控状态, 活体定位 burst 为何不发射
+     * (2026-09-06: 窗口期 25527 空转 30s 零 mt19b, 静态推演到头) */
+    if (++mt81_beat >= 200000) {
+      mt81_beat = 0;
+      pr_info("mt81: consumer seq=%d seen=%d stop=%d route_done=%d "
+              "calls=%d tid=%d\n", seq, seen,
+              atomic_load(&slide_consume_stop),
+              atomic_load(&slide_route_done),
+              atomic_load(&slide_consume_calls),
+              (int)syscall(SYS_gettid));
+      fflush(stdout);
+    }
+    if (seq != mt81_last_seq) {
+      /* mt82: seq 跳变日志 — 完整暴露消费者观察到的发布/关闭时刻 */
+      pr_info("mt82: consumer seq %d->%d (seen=%d) t=%lldms\n",
+              mt81_last_seq, seq, seen, (long long)slide_tdelta_ms());
+      fflush(stdout);
+      mt81_last_seq = seq;
+    }
+    /* mt82: seen 复位 — seen 是线程生命周期局部变量, 首次 publish 后
+     * seen=1 永不复位, 多 attempt 轮后续 publish(1) 全被 seq==seen 吞掉。
+     * 窗口关闭(go=0)即复位, 下一 attempt 的 publish(1) 重新可观察。 */
+    if (seq == 0 && seen != 0) {
+      seen = 0;
+    }
     if (seq == 0 || seq == seen) {
       __asm__ volatile("yield" ::: "memory");
       /* mt66: 窗口已死 (stop 或 route_done) 直接收工 — 不再 yield 空转

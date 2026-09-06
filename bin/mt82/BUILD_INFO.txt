@@ -1,0 +1,7 @@
+SHA256 preload.so: 35787008f7477491c180ae4e0ae384934376a6e3c01991aff75e978119afad74
+mt82: 消费者状态机修复 + 全量日志
+  1. seen 复位: 窗口关闭(go=0)即复位消费者局部 seen, 修掉"首次 publish 后
+     seen=1 永锁"的多 attempt 吞发 bug
+  2. mt82: seq 跳变日志 — 消费者每次观察到的 publish/close 时刻全量暴露,
+     配合 mt81 心跳构成完整状态机记录
+  与 mt81 差异 = 上述两点; 几何/时序零改动

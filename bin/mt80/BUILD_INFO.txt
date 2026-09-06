@@ -1,0 +1,5 @@
+SHA256 preload.so: 4d6b529f2cdf624af89e6e0914969b49ab6f4b85ae0b5c8bb3f7978235af998a
+mt80: kill_child 非阻塞化 — E5 三连卡死根治 (CHECKPOINT_mt79 理论分析定案)。
+  kill_child: SIGKILL 后阻塞 waitpid → WNOHANG 有界轮询(~1s/child), 超时
+  放弃收尸; leak child waitpid 同样加界(3s)。全部调用点(7处)一次覆盖。
+  几何零改动; 与 mt77 已验证引擎唯一差异 = 收尸不再可阻塞。

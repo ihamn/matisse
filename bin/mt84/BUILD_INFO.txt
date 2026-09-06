@@ -1,0 +1,7 @@
+SHA256 preload.so: 37279712dd9129a7b535867b95a77fe7b19cf23a3120ee7907fb0a8af88518ef
+mt84: child 轮询窗口 8min → PSELECT_CHILD_POLLS 可调 (默认 6000=20min)
+  原因: FWRQ 分钟级延迟把 C 落地拖出 8min 窗口 (2026-09-07 实证:
+  euid=0 已落地但 gate 已停 → finit_module 从未执行)。
+  配套: PSELECT_KO=/data/local/tmp/android12-5.10_kernelsu.ko
+  落地链: gate → setresuid → root_alive.txt → finit_module(flags 0→3
+  vermagic bypass) → ksu_done.txt → _exit(42)

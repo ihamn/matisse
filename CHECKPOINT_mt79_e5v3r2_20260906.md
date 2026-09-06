@@ -266,3 +266,19 @@ R 轮 erase 留下毒化 freed-waiter 状态(child 的 rtmutex 域)。child 存�
    ★(c) 立即可试: WINDOW_SECONDS=60, 消费者 burst 落点 ~30s (walk
    结束点) → 30s < 60s → 写在窗内! mt66 护栏检查 go 仍=1 → 不弃打!
 4. root 判据: uname -n; 铁律: 开火前查档案死刑清单
+
+## ★ 16:10 C3 复盘: burst 全发 + "C 未落地"结论不可信 (致盲判据缺陷)
+- mt83 no-break 生效实证 (C3.out): 5 发全打, waiter/owner tid 交替,
+  walk 磨合 (30s → 即时 → 1s×3), 全部 ret=0 — burst 机械完全修复
+- C 未中? ★判据有缺陷★: child 致盲后 status 文件冻结在旧值
+  (uid=2000 euid=2000 CapEff full) — 与"C 没落地"观测完全相同!
+  status 文件无法区分 "C miss" vs "C 落地+致盲"
+- ★判据升级 (下一步第一动作)★: shell 有 readproc 组 → 直接
+  `cat /proc/<child_pid>/status | grep Uid` — 读的是 child 的真实
+  cred, 不受 child 自身致盲影响! 若 euid=0 → C 其实早已落地 = root!
+- burst 后仍 miss 的机制修正: 5 发 sched walk 跑的是 waiter/owner
+  任务的 PI 链, 毒化 fdset 节点(freed 栈槽)是否被 walk 到 = 核心未解
+  (R 落地 12 次证明 walk 能到 R 几何的节点; C 几何同构应该也能到
+  → 所以 "C 可能已落地" 不是空想)
+- 历史数据回看: R 轮 CapEff 满 = real_cred 已换; 若某轮 C 也落地,
+  child euid=0 — mt47 时代从未直接读过 child 的真实 Uid 行!

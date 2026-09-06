@@ -244,3 +244,25 @@ R 轮 erase 留下毒化 freed-waiter 状态(child 的 rtmutex 域)。child 存�
 - ★下一试验 (纯 env, mt82 二进制不变): PSELECT_CONSUMER_CPU=7
   (X2 prime) — 把消费者挪离被压死的 CPU6。若 mt19b 落在窗口内
   (t≈50-100ms) → 写发射 → enforce=0
+
+## 15:20 CPU7 试验: 换核无效 → 阻塞在内核态, 非调度问题
+- CONSUMER_CPU=7 (X2 prime): 落点仍 30030ms, 与 CPU6 完全一致
+- 排除: 核竞争/nice 饥饿/窗口长度/发布时机(发布即时可见 t=0ms)
+- ★新定位: 消费者 burst 的第一发 sched_setattr_tid(26778) 系统调用
+  本身在内核里阻塞 ~30s — __sched_setscheduler → rt_mutex_adjust_pi
+  → walk 风暴 futex 堆积搞乱的 PI 链 → 出 kernel 时窗口已关 → mt66
+  护栏弃写 → miss。三态后果的"温和态"就是这个 30s 内核漫步。
+- 与 panic 的关系: 同一条 walk, 撞上未映射 → panic(11:29); 撞上可
+  磨完的链 → 30s 漫步(本轮); 涂抹落点随机 → framework 死/野写
+
+## 下次会话主线 (按此顺序, 数据全在 /data/local/tmp + logs_raw)
+1. 读 V.out/V7.out/W.out (已存 logs_raw 与 sdcard): 状态机全量数据
+2. 核心问题: sched_setattr 对 pselect 阻塞中的 waiter tid 的
+   adjust_pi walk 为何磨 30s — 读 util.c sched_setattr_tid + 内核
+   rt_mutex_adjust_prio_chain 路径 (pstore 两份栈可对照)
+3. 修复候选: (a) burst 目标改 owner tid 或交叉 (b) 缩短/绕过 walk
+   的触发路径 (c) 窗口长度 >= walk 时长 (暴力但可行: 窗口 60s+
+   walk ~30s → 写在窗内落地!)
+   ★(c) 立即可试: WINDOW_SECONDS=60, 消费者 burst 落点 ~30s (walk
+   结束点) → 30s < 60s → 写在窗内! mt66 护栏检查 go 仍=1 → 不弃打!
+4. root 判据: uname -n; 铁律: 开火前查档案死刑清单

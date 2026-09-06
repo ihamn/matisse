@@ -33,3 +33,17 @@
 2. 无 E5 的 C 轮重试 (mt73 sethostname 信标 + R 先行) — 本次 C 因软重启
    中断, 内核全程无恙说明双 erase 也不 panic, 可在低负载下重试
 3. C 铁证 (hostname=glroot / Uid:0) 拿到即 root 到手; E5 只剩 KSU 加载用途
+
+## 补充 (08:44): E5v3r2 两轮 fork 模式复盘 + 软重启 #2
+- 第 2 轮 (08:29, load 13.6 达标, 屏幕常亮): rc=124 跑满, out 冻结在
+  "found 3 collisisons" → 卡死在 KernelSnitch 之后的 mm_struct 暴力扫描
+  (8 线程 VA 扫描, 内存密集) → D 状态堆积 load 2631 → system_server 饿死
+  → framework 软重启 #2 (boot_id ab549482 仍连续, 内核零伤, enforce 未动)
+- 两轮对照: 第 1 轮扫描通过但息屏毁窗口; 第 2 轮屏幕正常但扫描 thrash。
+  共同点: fork 模式 E5 轮的扫描阶段对内存压力极敏感 (9h uptime + swap
+  3GB + bilibili 1.2GB RES)。
+- ★对策★: ① 回归 mt77 已验证的 external 序列 (R 先行 → E5v3 external
+  PSELECT_TASK=<R-child> → C → E5R); ② 跑前关重应用清内存; ③ R 轮本身
+  8/8 稳定, 即使 E5 失败仍有 R-child 可打 C 信标; ④ 轮间冷却 3-5 分钟。
+- E5v3r2 几何本身已验证正确 (第 1 轮 mt79 打印: enforcing=00
+  initialized@+2=36, 校验器放行, 触发链全绿) — 只欠一个稳定的执行环境。

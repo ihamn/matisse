@@ -363,3 +363,14 @@ get_task_cred @0xffffffc008184804 读 task+0x778 (real_cred) — task_state
 信标/root_alive 的 SELinux 风险被窗口吸收; E5R 在 KO 装载后还原。
 ### 狩猎脚本 v2
 ~/ksu_hunt.sh 判据已换为上述 1/3/5 (弃用 status Uid 通道)。
+
+## ★ KSU 构建完成 (00:01) — 终局状态
+- kernelsu.ko FINAL v2: 54 导入 / 0 未解析 — 完全可装载
+  (resolver.c 本地强定义 32 个未导出符号; _cond_resched/rcu_read_unlock_strict
+  走 NULL 降级 no-op wrapper — PREEMPT 内核下语义正确; 对手"2死点"被设计覆盖)
+- 位置: bin/ksu/kernelsu_matisse_v2.ko (git 315a553) + sdcard kernelsu_prep/
+- 对手 v6 hunt 脚本已合并 (C轮no-op修复 + HUNT_ALLOW_KO 授权门 + hb_fresh + load15)
+## 最终发射序 (Shizuku 恢复后)
+1. cp sdcard kernelsu_prep/kernelsu_matisse_v2.ko → /data/local/tmp/kernelsu_matisse.ko
+2. HUNT_ALLOW_KO=1 bash ~/ksu_hunt.sh (对面 v6 脚本, KO 授权门已开)
+3. 判据: ksu_done.txt / /proc/modules 含 ksu / 管理器转绿 = 持久 root

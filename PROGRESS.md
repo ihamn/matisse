@@ -14,6 +14,19 @@ CVE-2026-43499 临时 root → KernelSU。
   但 flags=3 绕不过 Unknown symbol，必须源码重建（selinux_state 是数据符号）。
 - 下一步：mt85 build 重打 c-strike（R child 20min 门控），KO 装填需用户授权。
 
+## ⚠️ 2026-09-07 深夜 hunt 审计（对面 hunt/KSU-build 阶段，11 提交）
+- 对面已规范撤回 ROOT_EVIDENCE + 五层判据采纳；**matisse 树真编出
+  kernelsu.ko 112872B**（Bionic host 修复可信）。
+- **hunt v5 C 轮 100% 空转**：PSELECT_TASK 追加在重定向后=sleep argv
+  （沙盒实测 `invalid time interval`）→ 已修 v6（tskenv/koflag 入 env 块）。
+- **KO 两死结**：ko 无 resolver（32 符号必 Unknown symbol）+ 2 符号运行
+  内核无名（`_cond_resched` 全内联删调用；`rcu_read_unlock_strict` 改名
+  `rcu_read_unlock`，kallsyms 有名可 resolver）。最终任务=32 resolver+2 源码改。
+- hunt v6 新纪律：E5→C 心跳新鲜度门 + load>15 门 + **HUNT_ALLOW_KO=1
+  授权门**（默认无 KO 仅取 C 落地证据）。hunt 尚未开火。
+- 现场 TODO：kernelsu_prep/ 全套入库（构建能力只活在现场一台机）。
+  详见 `REVIEW_2026-09-07_hunt_audit.md`。
+
 ## ⚠️ E5v2 重启根因已破案（2026-09-05 深夜，交接前最后推导）
 **E5v2/E5R 的重启是我方 mt76 设计 bug，非 framework 反制**：写值 0x10000 放在
 TREE_RIGHT(word1)=child → child≠0 触发 STORE(b) `*(0x10000)=pc` → 对未映射

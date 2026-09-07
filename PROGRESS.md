@@ -27,6 +27,19 @@ CVE-2026-43499 临时 root → KernelSU。
 - 现场 TODO：kernelsu_prep/ 全套入库（构建能力只活在现场一台机）。
   详见 `REVIEW_2026-09-07_hunt_audit.md`。
 
+## ⚠️ 2026-09-07 .ko 风险评估（用户关切，REVIEW_2026-09-07_ko_risk.md）
+- 当前 ko **惰性安全**（32 未导出符号 → Unknown symbol，init 永不跑）；
+  危险窗口在 resolver 之后。
+- **运行内核 MODVERSIONS=OFF**（kallsyms 零 __crc_）→ resolver+flags=3
+  加载 = **零加载期 ABI 校验**，结构安全只能靠基线同源。
+- 构建树实证 5.10.81（Makefile）vs 出厂 .136 vs 运行 .209 = 128 stable
+  漂移；resolver 计划三缺陷：skip-on-unresolved 语义炸弹（RCU 失衡）、
+  13 个数据符号需宏别名（函数垫片救不了）、配置漂移（.81 树 PREEMPT/
+  RCU_STRICT ≠ 运行内核）。
+- 终局路线：android12-5.10.209 common 基线 + /proc/config.gz 真 config
+  重建 → vermagic 精确匹配 flags=0 直载。L0/L1 加载失败本身=免费取证
+  （UTS_RELEASE / 32 名单 / 签名强制与否），均在授权门内。
+
 ## ⚠️ E5v2 重启根因已破案（2026-09-05 深夜，交接前最后推导）
 **E5v2/E5R 的重启是我方 mt76 设计 bug，非 framework 反制**：写值 0x10000 放在
 TREE_RIGHT(word1)=child → child≠0 触发 STORE(b) `*(0x10000)=pc` → 对未映射

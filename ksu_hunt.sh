@@ -1,7 +1,16 @@
 #!/data/data/com.termux/files/usr/bin/bash
 # ★ KSU 狩猎 v4 — 飞行记录仪模式 (实时落盘, 崩溃前状态永可回放) ★
 # 启动: bash ~/ksu_hunt.sh [轮数]
-RISH=$HOME/rish
+# rish 自动探测: PATH → $HOME → 全盘常见位置
+RISH=$(command -v rish 2>/dev/null)
+[ -z "$RISH" ] && [ -x "$HOME/rish" ] && RISH="$HOME/rish"
+if [ -z "$RISH" ]; then
+  RISH=$(find /data/data/com.termux/files/home /data/local/tmp /sdcard/Documents/matisse_backup_essentials -maxdepth 2 -name "rish" -type f 2>/dev/null | head -1)
+fi
+if [ -z "$RISH" ] || [ ! -x "$RISH" ]; then
+  echo "!! 找不到 rish — 确认 Shizuku 已启动且 rish 在 $HOME"; exit 1
+fi
+echo "rish: $RISH"
 LOG=/data/local/tmp/cstrike_log.txt
 EV=/sdcard/Documents/matisse_backup_essentials/hunt_evidence
 ST=/data/local/tmp/ksu_hunt_state.txt

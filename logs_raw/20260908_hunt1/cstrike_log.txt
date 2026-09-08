@@ -1,0 +1,26 @@
+=== cstrike start 18:50:34 preload=893e0ad7ea576cbf13c32a8ac456775526c0f3a6c6b6512c79d15933201a4e7e
+--- R round ---
+R rc=255 status=task=ffffff816cb30000 uid=2000 euid=2000 CapEff=000001ffffffffff root_seen=0
+R LANDED, TASK=ffffff816cb30000 — C strike in 30s
+--- C strike (LAST touch of this child) ---
+C rc=0 enforce=Enforcing hostname=
+child=20015 Uid-line:
+Name:	sleep
+State:	S (sleeping)
+Uid:	0	0	0	0
+Gid:	0	0	0	0
+CapEff:	000001ffffffffff
+child-alive=/proc/20015/status
+YES
+--- evidence poll 120s ---
+t=10s root_alive=[] hostname=[] status=[task=ffffff816cb30000 uid=2000 euid=2000 CapEff=000001ffffffffff root_seen=0] boot=5fa1430e
+t=20s root_alive=[] hostname=[] status=[task=ffffff816cb30000 uid=2000 euid=2000 CapEff=000001ffffffffff root_seen=0] boot=5fa1430e
+t=30s root_alive=[] hostname=[] status=[task=ffffff816cb30000 uid=2000 euid=2000 CapEff=000001ffffffffff root_seen=0] boot=5fa1430e
+t=40s root_alive=[] hostname=[] status=[task=ffffff816cb30000 uid=2000 euid=2000 CapEff=000001ffffffffff root_seen=0] boot=5fa1430e
+t=50s root_alive=[] hostname=[] status=[task=ffffff816cb30000 uid=2000 euid=2000 CapEff=000001ffffffffff root_seen=0] boot=5fa1430e
+t=60s root_alive=[] hostname=[] status=[task=ffffff816cb30000 uid=2000 euid=2000 CapEff=000001ffffffffff root_seen=0] boot=5fa1430e
+t=70s root_alive=[] hostname=[] status=[task=ffffff816cb30000 uid=2000 euid=2000 CapEff=000001ffffffffff root_seen=0] boot=5fa1430e
+t=80s root_alive=[] hostname=[] status=[task=ffffff816cb30000 uid=2000 euid=2000 CapEff=000001ffffffffff root_seen=0] boot=5fa1430e
+t=90s root_alive=[] hostname=[] status=[task=ffffff816cb30000 uid=2000 euid=2000 CapEff=000001ffffffffff root_seen=0] boot=5fa1430e
+t=100s root_alive=[] hostname=[] status=[task=ffffff816cb30000 uid=2000 euid=2000 CapEff=000001ffffffffff root_seen=0] boot=5fa1430e
+t=110s root_alive=[] hostname=[] status=[task=ffffff816cb30000 uid=2000 euid=2000 CapEff=000001ffffffffff root_seen=0] boot=5fa1430e

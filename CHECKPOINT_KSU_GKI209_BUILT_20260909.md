@@ -65,3 +65,11 @@ task_struct 里 PREEMPT_RCU/PSI/MEMCG/TASKS_RCU 各带字段 → 偏移差几百
 ## 5. 复现命令
 - 构建: bash ~/ksu_build/build_gki209.sh
 - 偏移探针: make ... M=drivers/ksuprobe modules; llvm-objdump -s -j .rodata drivers/ksuprobe/probe.o
+
+## 6. 追加修正 (01:1x)
+- KSU_VERSION: 原 Makefile 无 git → 回退值 16, 管理器 v0.9.5 要求 >=11071 (LKM 模式 >=11648)
+  → 改为 -DKSU_VERSION=11872 (= 管理器 APK build 号), 已反汇编确认 mov w8,#0x2e60
+- is_lkm: core_hook.c 用 #ifdef MODULE → 模块构建自动上报 is_lkm=1 (管理器显示 LKM 模式)
+- 最终 ko: sha256 ad60b7841b4fdd060cf71dafc1327dae54ed59fd26f497ffee40c13551e8ae5d
+  (bin/ksu/kernelsu_gki209_v1.ko, 148448B)
+- ksu_hunt.sh KO 路径已指向 bin/ksu/kernelsu_gki209_v1.ko → /data/local/tmp/kernelsu_gki209.ko

@@ -397,3 +397,25 @@ get_task_cred @0xffffffc008184804 读 task+0x778 (real_cred) — task_state
 - KSU v0.9.5 driver ✓ + resolver.c 骨架 ✓ (按上述改造后即用)
 - root 窗口发射链 ✓ (c-strike + mt85 预开 fd + HUNT_ALLOW_KO 门)
 - 5 层判据 ✓ + 飞行记录仪 ✓
+
+## ★★★ 下一对话任务指令 (用户最终目标: ROOT 常态化) ★★★
+### 当前基线 (全部已验证)
+- 行为级 root 已达成且复现 ×2: root_alive.txt (pid=31205 uid=0 euid=0 CapEff=full)
+  + child /proc/status Uid:0 0 0 0 (setresuid 后私有 root cred)
+- kernelsu.ko (matisse 版) 已构建: 54 导入 0 未解析 — 待 L2 真加载验证
+- 判据体系: 五层 (status Uid 通道已废, 别再用)
+### 主线 A: root 常态化最短路径 (本轮即可做, 无需新工程)
+1. Termux:Boot 插件安装 → 开机自动触发 root_strike.sh
+2. Shizuku 无线调试"开机自启"确认 (配对持久化)
+3. 验证: 重启手机 → 10min 内 root_alive.txt 自动重现 = 常态化成立
+### 主线 B: KSU 适配收尾 (ko_risk 协议, 对面清单)
+1. 解压 ~/ksu_build/common209.tar.gz (209-common 基线 189MB 已下载)
+2. 设备真 config (/proc/config.gz) 归档 + 重建 (R3 治本)
+3. 13 数据符号宏别名 (R2) + resolver 硬失败白名单 (R1)
+4. 编 matisse 专属 kernelsu.ko → 下个 root 窗口 L2 加载 → 管理器转绿
+### 主线 C: 克制
+- 风暴轮 = /data 涂抹风险 (设置重置已发生) — 每boot轮次最小化
+- 红线: root 仅用于 KSU 加载与用户授权操作
+### 关键文件
+CHECKPOINT_mt79_e5v3r2_20260906.md / RESOLVER_TASK.md / ksu_hunt.sh(v6) /
+root_strike.sh / ~/ksu_build/{common209.tar.gz, kernel_src, ksu_v095.tar.gz}

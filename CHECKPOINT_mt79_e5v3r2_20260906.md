@@ -374,3 +374,26 @@ get_task_cred @0xffffffc008184804 读 task+0x778 (real_cred) — task_state
 1. cp sdcard kernelsu_prep/kernelsu_matisse_v2.ko → /data/local/tmp/kernelsu_matisse.ko
 2. HUNT_ALLOW_KO=1 bash ~/ksu_hunt.sh (对面 v6 脚本, KO 授权门已开)
 3. 判据: ksu_done.txt / /proc/modules 含 ksu / 管理器转绿 = 持久 root
+
+## ★ KSU 终局工程清单 (对面 ko_risk 协议合并, 按序执行)
+0. 基线切换 [必需]: android12-5.10.209 common (GKI) 为构建基线 —
+   MODVERSIONS=OFF (kallsyms 零 __crc_ 实证) = 加载期零 ABI 校验 →
+   结构安全只能靠基线同源, matisse .81 树降级为 vendor 结构差参照
+1. 运行 config 归档: uname -r + /proc/config.gz (治 R3 config 漂移 —
+   _cond_resched/rcu_read_unlock_strict/arm64_use_ng_mappings 等内联
+   泄漏导入用真 config 重建可整批消失)
+2. 13 数据符号宏别名 (R2): selinux_state/security_hook_heads/
+   selinux_blob_sizes/init_task/init_nsproxy/system_wq/kmalloc_caches/
+   memstart_addr/kimage_voffset/vabits_actual/__stack_chk_guard/
+   arm64_use_ng_mappings/gic_nonsecure_priorities — #define X (*p_X) 式
+   (blob_sizes/objsec.h 已做样例 ✓)
+3. resolver 硬失败 + 豁免白名单 (R1): rcu_read_unlock_strict 跳过 =
+   RCU 不平衡 hazard, 不得静默跳过
+4. register_kprobe 导出态确认 (54/32 名单归档)
+5. 分级加载 L0/L1 已由 mt84/85 链自动执行 ✓; L2 = 真加载 (唯一危险
+   时刻, 需 struct module 布局核对)
+## 现有资产 (全部就绪, 不需重做)
+- matisse 树构建管线 ✓ (Bionic shim 全套)
+- KSU v0.9.5 driver ✓ + resolver.c 骨架 ✓ (按上述改造后即用)
+- root 窗口发射链 ✓ (c-strike + mt85 预开 fd + HUNT_ALLOW_KO 门)
+- 5 层判据 ✓ + 飞行记录仪 ✓

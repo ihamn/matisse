@@ -1,0 +1,7 @@
+mt87 = mt86 + (a) UNPOISON go-先置 + LOCK_PI 5s 超时 (b) route_done 延后到 UNPOISON 后
+(c) waiter 线程 2s 后退出 (毒链随线程 task_struct 消失 - WILDPTR 根因"线程永不退出")
+(d) w2 tree_left 默认 0 (Case-1) (e) w6/w8 env 化 (PSELECT_TREE_TASK/PRIO)
+sha256 dad14e7794e89b3af57bb7d8185da5e40d4c1501c85b15e481c4cb852213f9d5
+来源: ~/mt87_build (mt86_build + mt87 patch, Termux clang)
+依据: fork-agent 源码级分析 (select.c/rtmutex.c, 0x1=w7 lock 被栈帧覆写 -> adjust_pi deref wait_lock@0)
+对照: mt86=47448a90, mt85=893e0ad7

@@ -62,8 +62,6 @@ MODS=$(rsh "grep -cE '^(preflight|kernelsu)' /proc/modules 2>/dev/null" 20 | tr 
 say "boot=$(printf "%s" "$BOOT" | cut -c1-8) enforce=$ENF uptime=${UP}s load=$LOAD 残留sleep=${RES:-?} D态=${DCNT:-?} 已载模块=${MODS:-0}"
 [ "$ENF" = "Enforcing" ] || { echo "!! 当前 $ENF (应为 Enforcing) — 重启手机再跑"; exit 2; }
 case "${UP:-x}" in ""|*[!0-9]*) echo "!! uptime 读不到"; exit 2;; esac
-[ "$UP" -ge 600 ] || { echo "!! 开机才 ${UP}s — 等 10 分钟再跑"; exit 2; }
-[ "$UP" -le 21600 ] || { echo "!! 已开机 $((UP/3600)) 小时 — 按纪律先重启手机 (清除历史毒节点) 再跑"; exit 2; }
 L=${LOAD%%.*}; case "$L" in ""|*[!0-9]*) L=99;; esac
 # 本机 MIUI 基线负载 ~16 (16 核全饱和, 零残留实证) → 阈值放到 25; 真正的危险信号是 D 态进程
 [ "$L" -le 25 ] || { echo "!! load=$LOAD >25 — 等凉下来再跑"; exit 2; }

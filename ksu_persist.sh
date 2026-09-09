@@ -148,6 +148,11 @@ if [ "$LOAD_INT" -gt 15 ]; then
 fi
 say "体检 OK: boot=$(printf '%s' "$BOOT0" | cut -c1-8) enforce=$ENF0 load=$LOAD0"
 
+# v7.1: Shizuku 抗冻加固 (best-effort)
+rsh "svc power stayon ac 2>/dev/null; svc power stayon true 2>/dev/null" 20 >/dev/null 2>&1
+rsh "cmd appops set moe.shizuku.privileged.api RUN_IN_BACKGROUND allow 2>/dev/null; cmd appops set com.termux RUN_IN_BACKGROUND allow 2>/dev/null; dumpsys deviceidle whitelist +moe.shizuku.privileged.api 2>/dev/null" 30 >/dev/null 2>&1
+say "坚化: stayon+appops 已尝试"
+
 # ── 5. 开火机器 ──
 cleangate(){ local i
   for i in 1 2 3 4; do
@@ -218,13 +223,19 @@ if [ "$RLAND" != "1" ]; then
 fi
 R11_GATE=R_LANDED
 E5OK=0
-for e in a b; do
+for e in a b c d e; do
   say "E5$e permissive 开窗..."
   fire E5$e E5 ""
-  EF=$(rsh 'getenforce' 20 | tr -d '
-')
+  EF=$(rsh 'getenforce' 20 | tr -d '\r')
   say "E5$e 后 enforce=$EF"
   if [ "$EF" = "Permissive" ]; then E5OK=1; break; fi
+  if printf '%s' "$EF" | grep -q "Server is not running\|timeout"; then
+    say "!! rish 掉线 - 等 Shizuku 回来(最多6分钟)..."
+    for w2 in 1 2 3 4 5 6 7 8 9 10 11 12; do sleep 30
+      OK2=$(rsh 'id -u' 15 | tr -d '\r \n')
+      [ "$OK2" = "2000" ] && { say "rish 恢复, 续试 E5"; break; }
+    done
+  fi
 done
 if [ "$E5OK" != "1" ]; then
   say "!! E5 两发未翻 Permissive - 重启手机后重跑"

@@ -65,3 +65,16 @@
 3. 干净 boot: 亲自驾驶 R->E5a(permissive 确认)->C(gki209 finit)->E5R, 实时取证
 4. 成功判据: R.out "finit_module OK" + /proc/modules ksu + dmesg "resolver ok" + manager 转绿 + su; 无 panic
 5. root 长久化设计 (ksuinit 替代/开机重载/verity 状态核查)
+
+## \u4fee\u6b63 (v4.2, 03:35) - C \u843d\u5730\u8bc1\u636e\u72b6\u6001\u91cd\u5ba1
+- 20260907_ROOT_EVIDENCE \u5df2\u88ab\u5bf9\u9762\u590d\u6838\u64a4\u56de: /proc/PID/status Uid \u56db\u5143\u7ec4
+  \u53ea\u8bfb task+0x778 (real_cred, \u6307\u4ee4\u7ea7\u6838\u9a8c) \u2192 \u65e9\u5148\u5f15\u7528\u7684 "cstrike Uid 0/0/0/0"
+  = R \u843d\u5730 (real_cred=init_cred) \u7684\u53e6\u4e00\u79cd\u5f62\u6001, \u4e0d\u662f C \u843d\u5730
+- \u4e3b\u89c2 cred \u7684 C \u843d\u5730 (\u7528\u6237\u6001 getresuid euid==0) \u4ece\u672a\u88ab\u5e72\u51c0\u89c2\u6d4b
+  (mt49_child_status root_seen=0 \u4e00\u76f4) \u2192 finit_module \u4e5f\u4ece\u672a\u786e\u8ba4\u6267\u884c
+- P0-A (08-16) \u662f\u552f\u4e00\u7684 cred-\u5185\u5bb9\u5199\u5165\u5b9e\u8bc1 (uid@+4 \u96f6\u5199, \u5b50\u8fdb\u7a0b
+  getresuid uid=0) - \u4f46\u8be5\u8def\u7ebf euid/suid \u672a\u96f6, \u4e14\u4e0e PTR \u6307\u9488\u6362\u4e0d\u540c\u673a\u5236
+- \u2460 \u610f\u5473: \u8fd0\u884c\u9884\u671f = R \u843d\u5730\u9ad8\u6982\u7387, C/E5/finit \u5747\u672a\u8bc1\u5b9e,
+  \u4e14 ROOT-SEEN/finit \u8bc1\u636e\u5728 R1.out (R child stdout) \u2192 v4.2 C \u540e\u518d\u56de\u62c9 R1.out
+- \u2461 mt87 \u4e4b\u524d\u7684 panic \u4e0d\u80fd\u8bc1\u660e "finit \u5df2\u6210\u529f"; \u6a21\u5757\u5185\u5b58\u533a\u5730\u5740
+  0xffffffd1... \u4e5f\u53ef\u80fd\u662f exploit \u81ea\u5df1\u7684 vmalloc \u55b7\u9875

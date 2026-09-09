@@ -77,6 +77,8 @@ rpush(){ local l="$1" r="$2" out i
     sleep 10
   done
   printf "%s\n" "$out"; return 1; }
+# mt87: rsh1 别名 (fire() 用; 继承 rsh 的 5x 重试)
+rsh1(){ rsh "$1" "${2:-280}"; }
 # 二次自检: 确认输出通道真的通 (不只看 id)
 ST2=$(rsh "cat /proc/sys/kernel/random/boot_id" 60 | tr -d "\r")
 printf "%s" "$ST2" | grep -qE "^[0-9a-f]{8}-" || { echo "!! rish 二次自检失败 (boot_id 读不到: [$ST2])"; exit 2; }

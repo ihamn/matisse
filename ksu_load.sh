@@ -26,30 +26,63 @@ echo " 日志: $LOGD"
 echo "=========================================================="
 for f in "$PRE" "$KSU" "$EXP" "$RISH"; do [ -f "$f" ] || { echo "!! 缺文件: $f"; exit 1; }; done
 
-# ---------- rish 封装: 统一 -c 模式 + 闪断重试 ----------
-rsh1(){ (cd "$H" && timeout "${2:-60}" ./rish -c "$1") 2>&1; }
-rsh(){ local cmd="$1" t="${2:-60}" out i
-  for i in 1 2 3 4 5; do
-    out=$(rsh1 "$cmd" "$t")
-    printf "%s" "$out" | grep -q "Request timeout\|blocked by your system" || { printf "%s\n" "$out"; return 0; }
-    [ "$i" -lt 5 ] && say "Shizuku 闪断 $i/5, 8s 重试 (Shizuku 需显示正在运行 + 电池无限制)" >&2; sleep 8
-  done; printf "%s\n" "$out"; return 1; }
-rpush(){ local l="$1" r="$2" out i
-  for i in 1 2 3 4 5; do
-    out=$( (cd "$H" && timeout 180 ./rish -c "cat > $r") < "$l" 2>&1 )
-    printf "%s" "$out" | grep -q "Request timeout\|blocked by your system" || { printf "%s\n" "$out"; return 0; }
-    [ "$i" -lt 5 ] && say "推送闪断 $i/5, 8s 重试" >&2; sleep 8
-  done; printf "%s\n" "$out"; return 1; }
-
-# ---------- rish 自检 (v3 关键) ----------
-ST=$(rsh "id -u" 20 | tr -d "\r")
-if [ "$ST" != "2000" ]; then
-  echo "!! rish 自检失败: id -u 返回 [$ST] (期望 2000)"
-  echo "   1) Shizuku 是否显示正在运行?  2) Termux+Shizuku 电池是否无限制?"
-  echo "   3) 手动试:  cd ~ && ./rish -c 'id -u'   (必须打印 2000)"
+# ---------- rish 层 (抄 ksu_hunt.sh 成熟做法 + 冷启动/超时/模式 三重加固) ----------
+RISH_DIR="$H"
+chmod +x "$RISH" 2>/dev/null
+RISH_MODE="c"
+rish_try(){ local cmd="$1" t="$2"
+  if [ "$RISH_MODE" = "stdin" ]; then
+    printf "%s\n" "$cmd" | (cd "$RISH_DIR" && timeout -k 5 "$t" ./rish) 2>&1
+  else
+    (cd "$RISH_DIR" && timeout -k 5 "$t" ./rish -c "$cmd" </dev/null) 2>&1
+  fi; }
+# 冷启动自检: 两种模式 x 5 轮, 每轮 10s 间隔 (Shizuku app 被冻结时首调会超时)
+RISH_OK=0
+say "rish 自检 (两种模式 x 5 轮, 首次可能慢, 别打断)..."
+for attempt in 1 2 3 4 5; do
+  for mode in c stdin; do
+    RISH_MODE="$mode"
+    WARM=$(rish_try "id -u" 90)
+    W=$(printf "%s" "$WARM" | tr -d "\r\n ")
+    if [ "$W" = "2000" ]; then RISH_OK=1; break 2; fi
+    say "  第${attempt}轮 模式=${mode} 失败: $(printf "%s" "$WARM" | head -c 50)" >&2
+  done
+  [ "$attempt" -lt 5 ] && sleep 10
+done
+if [ "$RISH_OK" != "1" ]; then
+  echo "!! rish 自检失败 (两种模式 x 5 轮都没拿到 uid=2000)"
+  echo "   最后一次输出: [$(printf "%s" "$WARM" | head -c 120)]"
+  echo "   排查: 1) Shizuku app 显示正在运行?  2) Termux+Shizuku 电池无限制?"
+  echo "         3) 手动: cd ~ && ./rish -c 'id -u'  (应打印 2000)"
   exit 2
 fi
-say "rish 自检 OK (uid=2000, 模式=-c)"
+say "rish OK (模式=$RISH_MODE, uid=2000, 第${attempt}轮成功)"
+rsh(){ local cmd="$1" t="${2:-60}" out i
+  for i in 1 2 3 4 5; do
+    out=$(rish_try "$cmd" "$t")
+    if ! printf "%s" "$out" | grep -qE "Request timeout|blocked by your system|Terminated"; then
+      printf "%s\n" "$out"; return 0
+    fi
+    say "rish 闪断/超时 $i/5, 10s 后重试" >&2
+    sleep 10
+  done
+  printf "%s\n" "$out"; return 1; }
+rpush(){ local l="$1" r="$2" out i
+  for i in 1 2 3 4 5; do
+    out=$( (cd "$RISH_DIR" && timeout -k 5 180 ./rish -c "cat > $r") < "$l" 2>&1 )
+    if ! printf "%s" "$out" | grep -qE "Request timeout|blocked by your system|Terminated"; then
+      printf "%s\n" "$out"; return 0
+    fi
+    say "推送闪断 $i/5, 10s 后重试" >&2
+    sleep 10
+  done
+  printf "%s\n" "$out"; return 1; }
+# 二次自检: 确认输出通道真的通 (不只看 id)
+ST2=$(rsh "cat /proc/sys/kernel/random/boot_id" 60 | tr -d "\r")
+printf "%s" "$ST2" | grep -qE "^[0-9a-f]{8}-" || { echo "!! rish 二次自检失败 (boot_id 读不到: [$ST2])"; exit 2; }
+say "rish 二次自检 OK (boot_id 可读)"
+
+
 
 # ---------- 体检 ----------
 BOOT=$(rsh "cat /proc/sys/kernel/random/boot_id" 20 | tr -d "\r")

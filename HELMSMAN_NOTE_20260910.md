@@ -78,3 +78,20 @@
   \u4e14 ROOT-SEEN/finit \u8bc1\u636e\u5728 R1.out (R child stdout) \u2192 v4.2 C \u540e\u518d\u56de\u62c9 R1.out
 - \u2461 mt87 \u4e4b\u524d\u7684 panic \u4e0d\u80fd\u8bc1\u660e "finit \u5df2\u6210\u529f"; \u6a21\u5757\u5185\u5b58\u533a\u5730\u5740
   0xffffffd1... \u4e5f\u53ef\u80fd\u662f exploit \u81ea\u5df1\u7684 vmalloc \u55b7\u9875
+
+
+## ★★★ 重大支线发现 (2026-09-10 03:45) - mqsas 免解BL root (替代内核 exploit 路线) ★★★
+参考: mrdong916/mi_nobl_root (Xiaomi15/HyperOS3/6.6 LKM 运行时加载 KSU):
+  service call miui.mqsas.IMQSNative 21 i32 1 s16 'sh' i32 1 s16 '<脚本>' s16 '<输出>' i32 <超时>
+  = 以 root (hypsys_ssi_default 域) 执行任意脚本 -> insmod kernelsu.ko
+  (https://github.com/mrdong916/mi_nobl_root)
+本机实证 (03:45):
+  - service list: #186 miui.mqsas.IMQSNative [] 存在; #187 MQSService;
+    #338/339 xiaomi.system.hypsys.common.IHypSysSsi(/Intl)
+  - 从 Termux app 域 (u0_a474, untrusted_app) service call -> "does not exist"
+    (getService find 被 SELinux 拒, 预期) -> 必须从 shell 域 (rish) 试
+  - ⭐ 下轮 rish 恢复后第一件事: shell 域跑 mqsas call 21 试 root
+    若成: id=root + hypsys 域 -> 试 (a) setenforce 0 (b) insmod kernelsu_gki209_v2.ko
+    -> 整条 CVE-2026-43499 内核 exploit 链可被绕过 (每 boot 秒级 root)
+  - 未知: HyperOS 2.0.6.0 (Android14/5.10) 上该接口/事务21是否仍有效;
+    hypsys 域在 Enforcing 下 insmod 是否被 module_load AVC 拒 (mi_nobl_root 仅 permissive 测过)

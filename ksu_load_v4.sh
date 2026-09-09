@@ -177,6 +177,10 @@ fi
 
 # ---------- C 轮: 装 kernelsu ----------
 fire Cksu C "$T" "$OUTD/kernelsu_gki209.ko"
+# v4.2: ROOT-SEEN/finit 的钱串打在 R child 的 stdout (=R1.out),
+#       C 落地后才会出现 → C 后必须再回拉 R1.out 尾部
+rsh "tail -c 300000 $OUTD/R1.out 2>/dev/null" 120 > "$LOGD/R1.afterC.tail.out" 2>/dev/null
+grep -a "ROOT-SEN\|finit_module\|mt87b\|ksu_done\|insmod\|UNPOISON\|no symbol\|disagree" "$LOGD/R1.afterC.tail.out" | tail -6
 KSUM=$(rsh "grep -c ksu /proc/modules 2>/dev/null" 20 | tr -d "\r ")
 rsh "dmesg 2>/dev/null | grep -aiE \"ksu|kernelsu\" | tail -15" 30 | tee "$LOGD/dmesg_ksu.txt"
 say "kernelsu: /proc/modules=${KSUM:-0}"

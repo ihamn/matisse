@@ -1,0 +1,10 @@
+mt86 = mt85 + UNPOISON (CVE-2026-43499 悬垂 pi_blocked_on 修复)
+sha256 47448a90580973f03affbc1f5ba177f8ac1c6fa9a1d1a1f3f97e5c159816c6c6
+来源: ~/mt86_build (workspace src + CC=clang 本地构建, 基线 mt85 复现 sha 893e0ad7)
+改动: slide.c
+  - slide_waiter_thread: pselect 写完成后再干净阻塞一次 FUTEX_LOCK_PI(f_pi_target)
+    → task_blocks_on_rt_mutex() 覆盖 task->pi_blocked_on (原为悬垂指针)
+  - slide_owner_thread: 收到 slide_unpoison_go 后 UNLOCK_PI(target)
+    → waiter 侧 remove_waiter() 以 current 正确清空 pi_blocked_on
+  - 关闭开关: PSELECT_NO_UNPOISON=1 (A/B 对照)
+判据: 日志出现 "mt86b: UNPOISON lock_pi(target) ret=0" + "owner UNPOISON unlock"

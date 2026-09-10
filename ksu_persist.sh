@@ -22,6 +22,8 @@
 set -u
 # 默认不武装 KO；只有调用方显式设置 HUNT_ALLOW_KO=1 才允许加载。
 : "${HUNT_ALLOW_KO:=0}"
+# å¼å®¹ ksu_load.sh ç KSU_LOAD_ALLOW_KO=1 è¯­ä¹ (åä¸æææå¾)
+if [ "${KSU_LOAD_ALLOW_KO:-0}" = "1" ]; then HUNT_ALLOW_KO=1; fi
 TOKEN=$(cat "$HOME/.matisse_token" 2>/dev/null | tr -d ' \r\n' || true)
 REPO_URL="https://ihamn:${TOKEN}@gitee.com/ihamn/matisse.git"
 [ -n "$TOKEN" ] || REPO_URL="https://gitee.com/ihamn/matisse.git"

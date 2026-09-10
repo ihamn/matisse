@@ -48,7 +48,7 @@ rish_try(){ local cmd="$1" t="$2"
 RISH_OK=0
 say "rish 自检 (两种模式 x 5 轮, 首次可能慢, 别打断)..."
 for attempt in 1 2 3 4 5; do
-  for mode in c stdin; do
+  for mode in stdin c; do
     RISH_MODE="$mode"
     WARM=$(rish_try "id -u" 90)
     W=$(printf "%s" "$WARM" | tr -d "\r\n ")
@@ -70,6 +70,10 @@ rsh(){ local cmd="$1" t="${2:-60}" out i
     out=$(rish_try "$cmd" "$t")
     if ! printf "%s" "$out" | grep -qE "Request timeout|blocked by your system|Terminated"; then
       printf "%s\n" "$out"; return 0
+    fi
+    if [ "$i" = "3" ]; then
+      case "$RISH_MODE" in stdin) RISH_MODE=c ;; *) RISH_MODE=stdin ;; esac
+      say "rish mode auto-switch -> $RISH_MODE" >&2
     fi
     say "rish 闪断/超时 $i/5, 10s 后重试" >&2
     sleep 10

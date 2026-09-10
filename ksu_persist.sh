@@ -2,11 +2,11 @@
 # ============================================================
 # matisse KSU 持久化脚本 v7 (2026-09-10 helmsman, 基于 v6 照搬)
 # 一行: bash ~/ksu_persist.sh [每boot R掷数=6]
-# v7: 弹药 mt85->mt87(毒链自清); KO 默认武装(=bin/ksu/kernelsu_gki209_v2.ko);
+# v7: 弹药 mt85->mt87(毒链自清); KO 可选武装(=bin/ksu/kernelsu_gki209_v2.ko，须显式授权);
 #     R 轮 env 预开 PSELECT_KO(A1修复); 同boot R 重掷循环; E5 gate(E5a->E5b);
-#     成功=内核模块留存(软重启不丢), 硬重启后重跑即自动重装; 关闭KO: export HUNT_ALLOW_KO=0
-# 用法: `bash ~/ksu_hunt.sh`                 — 默认无 KO (仅取 C 落地证据)
-#       `HUNT_ALLOW_KO=1 bash ~/ksu_hunt.sh` — 装填 KO (需用户明确授权!!)
+#     成功=内核模块留存(软重启不丢), 硬重启后需再次显式授权后重跑。
+# 用法: `bash ~/ksu_persist.sh`                 — 默认无 KO (仅取 C 落地证据)
+#       `HUNT_ALLOW_KO=1 bash ~/ksu_persist.sh` — 装填 KO (需用户明确授权!!)
 # 序列: 部署(SHA门) → 取证 → 体检(load门15) → R → E5v3 → C → E5R → 回收回传
 # 判据: ksu_done.txt / root_alive.txt / uname -n=glroot / ROOT-SEEN euid=0
 # v6 修复 (审计详情见 REVIEW_2026-09-07_hunt_audit.md):
@@ -19,8 +19,8 @@
 #      (既定用户规则: insmod/KSU 需另行授权, 脚本级强制)。
 # ============================================================
 set -u
-# v7: KO 默认武装 (旧 v6 需显式授权; 现默认开, export HUNT_ALLOW_KO=0 关闭)
-if ! set | grep -q '^HUNT_ALLOW_KO='; then HUNT_ALLOW_KO=1; fi
+# 默认不武装 KO；只有调用方显式设置 HUNT_ALLOW_KO=1 才允许加载。
+: "${HUNT_ALLOW_KO:=0}"
 TOKEN=$(cat "$HOME/.matisse_token" 2>/dev/null | tr -d ' \r\n' || true)
 REPO_URL="https://ihamn:${TOKEN}@gitee.com/ihamn/matisse.git"
 [ -n "$TOKEN" ] || REPO_URL="https://gitee.com/ihamn/matisse.git"
@@ -78,22 +78,27 @@ rpush(){ local l="$1" r="$2" out i
     sleep 8
   done; printf '%s\n' "$out"; return 1; }
 
-# ── 2. 部署 mt85 (SHA 门) + matisse ko ──
-say "第2步: 部署 mt85 + matisse kernelsu.ko"
+# ── 2. 部署 mt87 (SHA 门) + GKI KernelSU 模块 ──
+say "第2步: 部署 mt87 + GKI kernelsu.ko"
 [ -f "$WORK/bin/mt87/preload.so" ] || { say "!! 无 bin/mt87/preload.so"; exit 3; }
 SHA_EXP=$(grep -ao '[0-9a-f]\{64\}' "$WORK/bin/mt87/BUILD_INFO.txt" 2>/dev/null | head -1)
 rpush "$WORK/bin/mt87/preload.so" "/data/local/tmp/preload.new" >/dev/null
 rsh "mv -f /data/local/tmp/preload.new /data/local/tmp/preload.so; chmod 644 /data/local/tmp/preload.so" 30 >/dev/null
-# KO 装填: 默认关闭, HUNT_ALLOW_KO=1 显式授权才武装 (用户既定规则)
+# KO 装填：默认关闭；HUNT_ALLOW_KO=1 显式授权后仍须通过本地/远端 SHA-256 门。
 KOV=""
 if [ "${HUNT_ALLOW_KO:-0}" = "1" ]; then
   if [ -f "$WORK/bin/ksu/kernelsu_gki209_v2.ko" ]; then
     rpush "$WORK/bin/ksu/kernelsu_gki209_v2.ko" "/data/local/tmp/kernelsu_gki209.ko" >/dev/null \
       || say "!! KO 推送失败 (rish 闪断) — C 轮将无 KO"
     rsh "chmod 644 /data/local/tmp/kernelsu_gki209.ko" 20 >/dev/null
-    [ -n "$(rsh "ls /data/local/tmp/kernelsu_gki209.ko 2>/dev/null" 20 | tr -d '\r')" ] \
-      && KOV="/data/local/tmp/kernelsu_gki209.ko"
-    say "KO 已武装: $KOV"
+    SHA_KO_EXPECTED=$(sha256sum "$WORK/bin/ksu/kernelsu_gki209_v2.ko" | awk '{print $1}')
+    SHA_KO_GOT=$(rsh "sha256sum /data/local/tmp/kernelsu_gki209.ko 2>/dev/null | awk '{print \$1}'" 30 | tr -d '\r')
+    if [ -n "$SHA_KO_EXPECTED" ] && [ "$SHA_KO_GOT" = "$SHA_KO_EXPECTED" ]; then
+      KOV="/data/local/tmp/kernelsu_gki209.ko"
+      say "KO 已武装且 SHA-256 已验证: ${SHA_KO_GOT:0:16}..."
+    else
+      say "!! KO SHA-256 不一致/不可读，C 轮将无 KO (expected=${SHA_KO_EXPECTED:0:16}... got=${SHA_KO_GOT:0:16}...)"
+    fi
     say "GKI ko: 布局已对齐设备(config 实证), 63导入全导出, 29符号走kprobe resolver(硬失败), CFI桩就位; 加载 flags=3"
   else
     say "!! bin/ksu/kernelsu_gki209_v2.ko 不在本地克隆 (未归档资产) — 无 KO 模式"
@@ -107,7 +112,7 @@ if [ -n "$SHA_EXP" ] && [ "$SHA_GOT" != "$SHA_EXP" ]; then
   case "$SHA_GOT" in *timeout*|*blocked*) say "$SHIZUKU_DEAD_HINT";; *) say "!! SHA 不一致, 中止";; esac
   exit 3
 fi
-say "二进制校验通过 (mt85: KO fd 预开 + 20min gate)"
+say "二进制校验通过 (mt87: KO fd 预开 + 20min gate)"
 
 # ── 3. 取证 (零开火): 残留 → 请求重启 ──
 say "第3步: 取证"

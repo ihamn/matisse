@@ -168,7 +168,7 @@ LOAD0=$(rsh "cat /proc/loadavg" 20 | tr -d '\r')
 LOAD_INT=${LOAD0%%.*}
 case "$LOAD_INT" in ''|*[!0-9]*) LOAD_INT=99;; esac
 if [ "$LOAD_INT" -gt 25 ]; then
-  say "!! load=$LOAD0 > 25 (MIUI baseline ~16; strict 15 refused every run) - wait and rerun
+  say "!! load=$LOAD0 > 25 (MIUI baseline ~16; strict 15 refused every run) - wait and rerun"
   exit 6
 fi
 say "体检 OK: boot=$(printf '%s' "$BOOT0" | cut -c1-8) enforce=$ENF0 load=$LOAD0"

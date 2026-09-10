@@ -98,7 +98,7 @@ fi
 SHA_GOT=$(rsh "sha256sum /data/local/tmp/preload.so" 30 | tr -d '\r' | awk '{print $1}')
 say "SHA 期望=${SHA_EXP:0:16}... 实际=${SHA_GOT:0:16}..."
 if [ -n "$SHA_EXP" ] && [ "$SHA_GOT" != "$SHA_EXP" ]; then
-  case "$SHA_GOT" in *timeout*|*blocked*) say "$SHIZUKU_DEAD_HINT";; *) say "!! SHA 不一致, 中止";; esac
+  case "$SHA_GOT" in *timeout*|*blocked*) say "$SHIZUKU_HINT";; *) say "!! SHA 不一致, 中止";; esac
   exit 3
 fi
 say "二进制校验通过 (mt85: KO fd 预开 + 20min gate)"

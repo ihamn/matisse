@@ -1,7 +1,8 @@
 #!/data/data/com.termux/files/usr/bin/bash
 # ============================================================
 # matisse KSU 持久化脚本 v7 (2026-09-10 helmsman, 基于 v6 照搬)
-# 一行: bash ~/ksu_persist.sh [每boot R掷数=6]
+# 一行(装 KO, 推荐): HUNT_ALLOW_KO=1 bash ~/ksu_persist.sh [每boot R掷数=6]
+# 只取 C 落地证据(不装模块): bash ~/ksu_persist.sh
 # v7: 弹药 mt85->mt87(毒链自清); KO 可选武装(=bin/ksu/kernelsu_gki209_v2.ko，须显式授权);
 #     R 轮 env 预开 PSELECT_KO(A1修复); 同boot R 重掷循环; E5 gate(E5a->E5b);
 #     成功=内核模块留存(软重启不丢), 硬重启后需再次显式授权后重跑。
@@ -109,7 +110,7 @@ fi
 SHA_GOT=$(rsh "sha256sum /data/local/tmp/preload.so" 30 | tr -d '\r' | awk '{print $1}')
 say "SHA 期望=${SHA_EXP:0:16}... 实际=${SHA_GOT:0:16}..."
 if [ -n "$SHA_EXP" ] && [ "$SHA_GOT" != "$SHA_EXP" ]; then
-  case "$SHA_GOT" in *timeout*|*blocked*) say "$SHIZUKU_DEAD_HINT";; *) say "!! SHA 不一致, 中止";; esac
+  case "$SHA_GOT" in *timeout*|*blocked*) say "$SHIZUKU_HINT";; *) say "!! SHA 不一致, 中止";; esac
   exit 3
 fi
 say "二进制校验通过 (mt87: KO fd 预开 + 20min gate)"

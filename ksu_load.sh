@@ -166,7 +166,7 @@ T=$(gettask); say "R 落地 task=$T"
 
 # ---------- E5v3 permissive ----------
 fire E5a E5 "" ""
-hbfresh || { echo "!! child 心跳陈旧, 不打 C 轮"; exit 6; }
+hbfresh || { echo "!! child 心跳陈旧, 不打 C 轮"; fire E5R E5R "" ""; exit 6; }
 ENF=$(rsh "getenforce" 20 | tr -d "\r")
 say "permissive: enforce=$ENF"
 # v4.1: E5 未翻转 -> 再补一发 (E5b); 仍失败 -> 不白打 C 轮, 重启后重跑

@@ -1,0 +1,6 @@
+id=matisse_permissive_netfix
+name=Matisse Permissive + NetFix
+version=v1.0
+versionCode=1
+author=matisse-project
+description=Keep SELinux Permissive after KernelSU late-load + fix network. Adapted from Cxyofficial K50G chuxin_permissive_netfix.

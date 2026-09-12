@@ -31,3 +31,29 @@ R (到落地) -> G1 校验 -> C x1 -> 判据(root_alive / ROOT-SEEN euid=0)
 - C 落地: /data/local/tmp/root_alive.txt 有内容(pid..uid=0 euid=0) 或 R round 的 .out 出现 'ROOT-SEEN ... euid=0'
 - KSU 装载: /proc/modules 出现 ksu (+ dmesg 'resolver ok')
 - 还原: E5R 后 /sys/fs/selinux/enforce = 1
+
+## 追加：09-13 01:36 轮事故（framework ANR，非内核崩）
+
+### 用户观察
+- C 轮期间出现**系统无响应对话框，点“等待”后仍无法关闭**；随后用户软重启恢复。
+
+### 设备侧事实
+- boot_id 全程 `f1d8478c…` 未变（uptime 63.2h）→ **没有内核 panic**；pstore 里那份 console-ramoops(262133B) 是 09-10 旧记录
+- 内存充裕：MemAvail 4.0GB / SwapFree 7.6GB → 排除 OOM/LMKD
+- logcat events 抓到 `am_kill … start timeout`（framework 起服务超时）→ framework 自身卡死
+- R 轮：落地成功(task ffffff81600b3780, CapEff 满)，mt87 UNPOISON 正常；
+- C 轮：日志停在 prep 的 `found 3 collissions`，**从未进入写阶段**，随后进程消失
+- R-child 与 C 轮进程在 ~01:37-01:44 前后同时死亡，ShizukuShellLoader 抛 NPE（会话被清）
+
+### 结论（因果链）
+C 轮 prep 的巨量进程/线程克隆 + 页喷，在 63h 老 boot + load 17 下把 framework 拖死 → 系统 ANR 框
+→ Shizuku 会话被清 → 由 rish 派生的 exploit 进程被一起杀 → 用户软重启。
+**与内核写原语无关（本轮没碰到写）**。
+
+### 修正协议（下轮必须遵守）
+1. **硬重启**再开跑：老 boot（>6h）上做 prep 的稳定性显著变差；目标 uptime < 1h、load<25
+2. 开火用 **setsid 脱离 rish 会话**（Shizuku 抖动不再连带杀轮次）
+3. **R 与 C 之间必须等 R 轮父进程退出**（≥200s），不要背靠背叠两轮 prep（本次即两轮 prep 叠加）
+4. 每窗口只打 1 发 C；C miss 就等窗口过期重新 R（不连打）
+5. 跑前 am kill-all / 关掉后台大应用（上次有 chrome 多进程在跑）
+6. 出现“系统无响应”时：直接软重启恢复，不要在 ANR 状态下继续任何操作

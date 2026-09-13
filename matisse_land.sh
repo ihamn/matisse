@@ -46,20 +46,31 @@ DETACH="${DETACH:-0}"               # 1=推去 /data/local/tmp 经 rish+setsid �
 MAX_ATTEMPTS="${MAX_ATTEMPTS:-2}"    # 每 boot 允许的 C 尝试上限(MTK slab 铁律)
 RISH_CANDIDATES="$HOME/rish $HOME/rish/rish /sdcard/Download/rish /storage/emulated/0/Download/rish /data/local/tmp/rish"
 
-RUN_TS=$(date +%Y%m%d_%H%M%S)
-LOG=/data/local/tmp/land_${RUN_TS}.log
-CARD=/data/local/tmp/land_${RUN_TS}.card
-
-say(){ echo "[land] $*"; }
-need(){ command -v "$1" >/dev/null 2>&1; }
-
-# ── rish 层 ──────────────────────────────────────────────────
-# 运行域判定: uid=2000 时说明脚本本身就在 shell 域(经 rish 启动), 直接本地执行,
-# 不再依赖 Termux —— 这是 DETACH 能"发射后关掉 Termux"的基础。
+# 运行域判定(最先做, 日志口依赖它): uid=2000 = 已经在 shell 域
 UID_NOW=$(id -u)
 IN_SHELL=0
 [ "$UID_NOW" = "2000" ] && IN_SHELL=1
 
+RUN_TS=$(date +%Y%m%d_%H%M%S)
+CARD=/data/local/tmp/land_${RUN_TS}.card
+# 日志口: Termux 域写家目录(Termux 读得到), shell 域写 /data/local/tmp(经 rish 读)
+if [ -n "${LAND_LOG:-}" ]; then
+  LOG="$LAND_LOG"
+elif [ "$IN_SHELL" = "1" ]; then
+  LOG=/data/local/tmp/land_${RUN_TS}.log
+else
+  LOG="$HOME/land_console_${RUN_TS}.log"
+fi
+
+say(){
+  _m="[land] $*"
+  printf '%s\n' "$_m"
+  printf '%s\n' "$_m" >> "$LOG" 2>/dev/null
+}
+need(){ command -v "$1" >/dev/null 2>&1; }
+
+# ── rish 层 ──────────────────────────────────────────────────
+# 运行域在文件开头已判定: shell 域直接本地执行, 不依赖 Termux (DETACH 的基础)
 if [ "$IN_SHELL" = "1" ]; then
   RISH_MODE="local"
   RISH_DIR=""
@@ -97,6 +108,7 @@ if [ "$IN_SHELL" = "0" ] && [ -z "$RISH_MODE" ]; then
   say "!! rish 不可用 (Shizuku 未运行/被冻结)。"
   say "   设置->应用->Termux 与 Shizuku->省电策略[无限制]; 插电亮屏后重试。"
   say "   last=[$(printf '%s' "$OUT" | head -c 120)]"
+  say "   日志口: $LOG"
   exit 2
 fi
 # uid 断言: 只认 RISH_OK_2000 (身份不对就停, 不猜)
@@ -153,7 +165,7 @@ if [ "$DETACH" = "1" ] && [ "$IN_SHELL" = "0" ]; then
   rpush "$0" "/data/local/tmp/land_run.sh" || { say "!! 脚本推送失败"; exit 2; }
   rsh "chmod 755 /data/local/tmp/land_run.sh" 20 >/dev/null 2>&1
   DLOG="/data/local/tmp/land_${RUN_TS}.log"
-  _env="DETACH=0 DEPLOY=0 ALLOW_KO=$ALLOW_KO COND=$COND CHECK=$CHECK RMAX=$RMAX SPACING=$SPACING FRESH_MAX=$FRESH_MAX MAX_ATTEMPTS=$MAX_ATTEMPTS"
+  _env="DETACH=0 DEPLOY=0 ALLOW_KO=$ALLOW_KO COND=$COND CHECK=$CHECK RMAX=$RMAX SPACING=$SPACING FRESH_MAX=$FRESH_MAX MAX_ATTEMPTS=$MAX_ATTEMPTS LAND_LOG=$DLOG"
   rsh "setsid env $_env sh /data/local/tmp/land_run.sh > $DLOG 2>&1 < /dev/null & echo DETACHED" 60 | tail -1
   say "已在 shell 域启动。跟进: rish -c 'tail -f $DLOG'   (或看 $DLOG)"
   say "注意: shell 域里回传 git 不可用(PUSH 自动关闭), 卡片会留在 $DLOG 同目录"
@@ -281,6 +293,8 @@ if [ "$CHECK" = "1" ]; then
   say "  preload sha=${SHA_SO}"
   [ -n "$KOFLAG" ] && say "  KO 已就绪" || say "  KO 未武装 (ALLOW_KO=1 才装填)"
   say "  去掉 CHECK=1 即可正式开火。"
+  say "  日志口: $LOG"
+  [ "$IN_SHELL" = "1" ] && say "  (shell 域日志, 在 Termux 里看: rish -c 'cat $LOG')"
   exit 0
 fi
 
@@ -479,6 +493,10 @@ say "──────────────── 判定 ──────�
 say "R: $R_VERDICT ($LNAME task=$TASK)   未开火轮次: $NOT_FIRED"
 say "C: $C_VERDICT    KSU 模块: $KSU    root_alive: $RA_YES"
 say "卡片: $CARD"
+say "日志: $LOG"
+if [ "$IN_SHELL" = "1" ]; then
+  say "(本实例跑在 shell 域; 在 Termux 里跟进: rish -c 'tail -f $LOG')"
+fi
 if [ "${KSU:-0}" -ge 1 ]; then
   say "★★★ 落地成功: 内核模块已装入, su 可用 ★★★"
 elif [ "$RA_YES" = "yes" ]; then

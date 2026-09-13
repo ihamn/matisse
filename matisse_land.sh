@@ -15,6 +15,9 @@
 #   5. 默认不推送任何日志到远端 (旧脚本会自动 push 到 gitee)
 #   6. 可选跑前整备 COND=1: kill-all / 关动画 / 藏崩溃弹窗 / stayon / 免电池优化
 #   7. G1 心跳新鲜, G2 轮次间隔 >=${SPACING}s, G3 每 R 窗口只打 1 发 C
+#   8. 部署回归: rm -f -> 推送 -> 源/远端 SHA 比对, 不一致直接中止 (R8 教训)
+#   9. 铁律补齐: 开火前留档; uid=2000 断言; 每 boot C 尝试预算;
+#      rish 坚化默认执行; DETACH 让 Termux 可关
 #
 # 用法 (Termux):
 #   bash ~/matisse_land.sh                 # 只取证据, 不装 KO
@@ -22,6 +25,9 @@
 #   COND=1 bash ~/matisse_land.sh          # 先做跑前整备, 结束后自动还原
 #   RMAX=3 SPACING=200 bash ~/matisse_land.sh
 #   CHECK=1 bash ~/matisse_land.sh         # 只跑体检/取证/弹药校验, 绝不开火
+#   DEPLOY=0 bash ~/matisse_land.sh        # 跳过部署, 直接用设备上现有的 preload.so
+#   DETACH=1 bash ~/matisse_land.sh        # 推去 /data/local/tmp 经 rish+setsid 跑, Termux 可关
+#   MAX_ATTEMPTS=2 bash ~/matisse_land.sh  # 每 boot 的 C 尝试上限 (MTK slab 铁律)
 #   PUSH=1 bash ~/matisse_land.sh          # 显式要求才回传 git (默认关闭)
 #
 # 产物: 终端输出 + /data/local/tmp/land_<时间戳>.card + 可选 git 回传
@@ -35,6 +41,9 @@ COND="${COND:-0}"                   # 跑前整备
 ALLOW_KO="${ALLOW_KO:-${HUNT_ALLOW_KO:-0}}"
 PUSH="${PUSH:-0}"
 CHECK="${CHECK:-0}"                 # 1=只体检, 不开火
+DEPLOY="${DEPLOY:-1}"               # 1=从 ~/matisse/bin 部署并校验哈希(仅 Termux 域)
+DETACH="${DETACH:-0}"               # 1=推去 /data/local/tmp 经 rish+setsid 跑, Termux 可关
+MAX_ATTEMPTS="${MAX_ATTEMPTS:-2}"    # 每 boot 允许的 C 尝试上限(MTK slab 铁律)
 RISH_CANDIDATES="$HOME/rish $HOME/rish/rish /sdcard/Download/rish /storage/emulated/0/Download/rish /data/local/tmp/rish"
 
 RUN_TS=$(date +%Y%m%d_%H%M%S)
@@ -45,19 +54,33 @@ say(){ echo "[land] $*"; }
 need(){ command -v "$1" >/dev/null 2>&1; }
 
 # ── rish 层 ──────────────────────────────────────────────────
-RISH=""
-for c in $RISH_CANDIDATES; do
-  [ -f "$c" ] && { RISH="$c"; break; }
-done
-if [ -z "$RISH" ]; then
-  say "!! 找不到 rish。请在 Shizuku 应用里复制 rish(和 rish_shizuku.dex) 到 ~/"
-  exit 2
-fi
-RISH_DIR=$(dirname "$RISH")
-chmod +x "$RISH" 2>/dev/null
+# 运行域判定: uid=2000 时说明脚本本身就在 shell 域(经 rish 启动), 直接本地执行,
+# 不再依赖 Termux —— 这是 DETACH 能"发射后关掉 Termux"的基础。
+UID_NOW=$(id -u)
+IN_SHELL=0
+[ "$UID_NOW" = "2000" ] && IN_SHELL=1
 
-RISH_MODE=""
+if [ "$IN_SHELL" = "1" ]; then
+  RISH_MODE="local"
+  RISH_DIR=""
+  PUSH=0   # shell 域读不到 Termux 家目录, 回传交给 Termux 侧
+  say "运行域: shell (uid=2000), 直接执行, 不依赖 Termux"
+else
+  RISH=""
+  for c in $RISH_CANDIDATES; do
+    [ -f "$c" ] && { RISH="$c"; break; }
+  done
+  if [ -z "$RISH" ]; then
+    say "!! 找不到 rish。请在 Shizuku 应用里复制 rish(和 rish_shizuku.dex) 到 ~/"
+    exit 2
+  fi
+  RISH_DIR=$(dirname "$RISH")
+  chmod +x "$RISH" 2>/dev/null
+fi
+
+RISH_MODE="${RISH_MODE:-}"
 for m in c stdin args; do
+  [ "$IN_SHELL" = "1" ] && break
   i=1
   while [ "$i" -le 3 ]; do
     case "$m" in
@@ -70,20 +93,43 @@ for m in c stdin args; do
     sleep 5
   done
 done
-if [ -z "$RISH_MODE" ]; then
+if [ "$IN_SHELL" = "0" ] && [ -z "$RISH_MODE" ]; then
   say "!! rish 不可用 (Shizuku 未运行/被冻结)。"
   say "   设置->应用->Termux 与 Shizuku->省电策略[无限制]; 插电亮屏后重试。"
   say "   last=[$(printf '%s' "$OUT" | head -c 120)]"
   exit 2
 fi
-say "rish 模式=$RISH_MODE 身份=$(printf '%s' "$OUT" | tr '\n' ' ')"
+# uid 断言: 只认 RISH_OK_2000 (身份不对就停, 不猜)
+case "${OUT:-}" in
+  *RISH_OK_2000*) ;;
+  *) [ "$IN_SHELL" = "0" ] && { say "!! rish 身份不是 2000: [$(printf '%s' "$OUT" | tr '\n' ' ' | head -c 80)]"; exit 2; } ;;
+esac
+say "rish 模式=$RISH_MODE 身份=$(printf '%s' "${OUT:-local(2000)}" | tr '\n' ' ')"
 
 rish_raw(){ # rish_raw <cmd> <timeout>
+  if [ "$IN_SHELL" = "1" ]; then sh -c "$1" 2>&1; return $?; fi
   case "$RISH_MODE" in
     c)    (cd "$RISH_DIR" && timeout "$2" ./rish -c "$1" </dev/null) 2>&1 ;;
     args) (cd "$RISH_DIR" && timeout "$2" ./rish "$1") 2>&1 ;;
     *)    printf '%s\n' "$1" | (cd "$RISH_DIR" && timeout "$2" ./rish) 2>&1 ;;
   esac
+}
+rpush(){ # rpush <本地文件> <远端路径> — 推送后按大小校验, 失败返回 1
+  _l=$1; _r=$2; _i=1
+  [ "$IN_SHELL" = "1" ] && { cp "$_l" "$_r" 2>/dev/null; return $?; }
+  _sz_l=$(wc -c < "$_l" 2>/dev/null | tr -dc '0-9')
+  while [ "$_i" -le 3 ]; do
+    if [ "$RISH_MODE" = args ]; then
+      (cd "$RISH_DIR" && timeout 180 ./rish "cat > '$_r'") < "$_l" >/dev/null 2>&1
+    else
+      { echo "cat > '$_r'"; cat "$_l"; } | (cd "$RISH_DIR" && timeout 180 ./rish) >/dev/null 2>&1
+    fi
+    _sz_r=$(rish_raw "wc -c < '$_r' 2>/dev/null" 30 | tr -dc '0-9')
+    [ -n "$_sz_l" ] && [ "$_sz_l" = "$_sz_r" ] && return 0
+    _i=$((_i + 1))
+    sleep 5
+  done
+  return 1
 }
 rsh(){ # 带闪断重试; 失败返回 1 且输出原文
   _i=1
@@ -100,6 +146,19 @@ rsh(){ # 带闪断重试; 失败返回 1 且输出原文
   return 1
 }
 rsh_q(){ rsh "$1" "${2:-20}" | tr -d '\r\n'; }   # 取单值
+
+# ── DETACH: 把自己交给 shell 域, Termux 之后可以关掉 ─────────
+if [ "$DETACH" = "1" ] && [ "$IN_SHELL" = "0" ]; then
+  say "DETACH=1: 脚本推送到 /data/local/tmp, 经 rish+setsid 运行 (脱离 Termux)"
+  rpush "$0" "/data/local/tmp/land_run.sh" || { say "!! 脚本推送失败"; exit 2; }
+  rsh "chmod 755 /data/local/tmp/land_run.sh" 20 >/dev/null 2>&1
+  DLOG="/data/local/tmp/land_${RUN_TS}.log"
+  _env="DETACH=0 DEPLOY=0 ALLOW_KO=$ALLOW_KO COND=$COND CHECK=$CHECK RMAX=$RMAX SPACING=$SPACING FRESH_MAX=$FRESH_MAX MAX_ATTEMPTS=$MAX_ATTEMPTS"
+  rsh "setsid env $_env sh /data/local/tmp/land_run.sh > $DLOG 2>&1 < /dev/null & echo DETACHED" 60 | tail -1
+  say "已在 shell 域启动。跟进: rish -c 'tail -f $DLOG'   (或看 $DLOG)"
+  say "注意: shell 域里回传 git 不可用(PUSH 自动关闭), 卡片会留在 $DLOG 同目录"
+  exit 0
+fi
 
 # ── 0. 体检 + 主门 ───────────────────────────────────────────
 BOOT0=$(rish_raw 'cat /proc/sys/kernel/random/boot_id' 20 | tr -d '\r\n')
@@ -139,14 +198,18 @@ restore_cond(){
   say "整备设置已还原 (hide_error_dialogs=0, 动画=1)"
 }
 trap 'restore_cond' EXIT INT TERM
+
+# 坚化: 每次必做(与旧脚本一致, 不依赖 COND) —— rish 闪断是历史上最主要的浪费源
+say "坚化: stayon + 免电池优化 + deviceidle 白名单"
+rsh 'svc power stayon true' 20 >/dev/null 2>&1
+rsh 'cmd deviceidle whitelist +com.termux +moe.shizuku.privileged.api' 30 >/dev/null 2>&1
+rsh 'cmd appops set moe.shizuku.privileged.api RUN_IN_BACKGROUND allow; cmd appops set com.termux RUN_IN_BACKGROUND allow' 30 >/dev/null 2>&1
+
 if [ "$COND" = "1" ]; then
-  say "整备: kill-all / 关动画 / 藏崩溃弹窗 / stayon / 免电池优化"
+  say "整备(COND=1): kill-all / 关动画 / 藏崩溃弹窗"
   rsh 'am kill-all' 60 >/dev/null 2>&1
   rsh 'settings put global hide_error_dialogs 1' 20 >/dev/null 2>&1
   rsh 'settings put global window_animation_scale 0; settings put global transition_animation_scale 0; settings put global animator_duration_scale 0' 30 >/dev/null 2>&1
-  rsh 'svc power stayon true' 20 >/dev/null 2>&1
-  rsh 'cmd deviceidle whitelist +com.termux +moe.shizuku.privileged.api' 30 >/dev/null 2>&1
-  rsh 'cmd appops set moe.shizuku.privileged.api RUN_IN_BACKGROUND allow; cmd appops set com.termux RUN_IN_BACKGROUND allow' 30 >/dev/null 2>&1
   RESTORE=1
   # 整备后再取一次基线(整备本身会改 load)
   LOAD0=$(rsh_q 'cat /proc/loadavg')
@@ -162,21 +225,53 @@ if [ "${RES:-0}" -gt 0 ]; then
   exit 5
 fi
 
-# ── 3. 弹药校验 ──────────────────────────────────────────────
-SHA_SO=$(rsh_q 'sha256sum /data/local/tmp/preload.so 2>/dev/null' | awk '{print $1}')
-if [ -z "$SHA_SO" ]; then
-  say "!! /data/local/tmp/preload.so 不存在 — 先用 rish 推送 mt87"
-  exit 3
-fi
-say "preload.so sha256=${SHA_SO%${SHA_SO#????????????????}}"
+# ── 3. 部署 + 弹药校验 (R8 教训: 部署后必须比对哈希, 不一致绝不动) ──
 KOFLAG=""
+SRC_SO="$HOME/matisse/bin/mt87/preload.so"
+SRC_KO="$HOME/matisse/bin/ksu/kernelsu_gki209_v2.ko"
+
+if [ "$DEPLOY" = "1" ] && [ "$IN_SHELL" = "0" ] && [ -f "$SRC_SO" ]; then
+  say "部署 preload.so (先 rm -f 再推, 之后比对 SHA)"
+  rsh 'rm -f /data/local/tmp/preload.so' 20 >/dev/null 2>&1
+  rpush "$SRC_SO" "/data/local/tmp/preload.so" || { say "!! preload 推送失败"; exit 3; }
+  rsh 'chmod 644 /data/local/tmp/preload.so; sync' 30 >/dev/null 2>&1
+  SHA_LOCAL=$(sha256sum "$SRC_SO" | awk '{print $1}')
+  SHA_SO=$(rsh_q 'sha256sum /data/local/tmp/preload.so' | awk '{print $1}')
+  if [ "$SHA_LOCAL" != "$SHA_SO" ]; then
+    say "!! 部署哈希不一致 — 中止"
+    say "   local =${SHA_LOCAL}"
+    say "   remote=${SHA_SO:-<空/读取失败>}"
+    exit 3
+  fi
+  say "部署校验通过 preload sha256=${SHA_SO%${SHA_SO#????????????????}}"
+else
+  SHA_SO=$(rsh_q 'sha256sum /data/local/tmp/preload.so 2>/dev/null' | awk '{print $1}')
+  if [ -z "$SHA_SO" ]; then
+    say "!! /data/local/tmp/preload.so 不存在 — 先用 rish 推送 mt87 (或 DEPLOY=1)"
+    exit 3
+  fi
+  say "preload.so sha256=${SHA_SO%${SHA_SO#????????????????}} (未部署, 无源可比对)"
+fi
+
 if [ "$ALLOW_KO" = "1" ]; then
-  SHA_KO=$(rsh_q 'sha256sum /data/local/tmp/kernelsu_gki209.ko 2>/dev/null' | awk '{print $1}')
-  if [ -n "$SHA_KO" ]; then
+  if [ "$DEPLOY" = "1" ] && [ "$IN_SHELL" = "0" ] && [ -f "$SRC_KO" ]; then
+    rsh 'rm -f /data/local/tmp/kernelsu_gki209.ko' 20 >/dev/null 2>&1
+    rpush "$SRC_KO" "/data/local/tmp/kernelsu_gki209.ko" || say "!! KO 推送失败 — 本轮无 KO"
+    rsh 'chmod 644 /data/local/tmp/kernelsu_gki209.ko; sync' 30 >/dev/null 2>&1
+    SHA_KO_L=$(sha256sum "$SRC_KO" | awk '{print $1}')
+    SHA_KO=$(rsh_q 'sha256sum /data/local/tmp/kernelsu_gki209.ko' | awk '{print $1}')
+    if [ "$SHA_KO_L" != "$SHA_KO" ]; then
+      say "!! KO 哈希不一致 — 本轮不武装 (local=${SHA_KO_L%${SHA_KO_L#????????????????}} remote=${SHA_KO:-空})"
+      SHA_KO=""
+    fi
+  else
+    SHA_KO=$(rsh_q 'sha256sum /data/local/tmp/kernelsu_gki209.ko 2>/dev/null' | awk '{print $1}')
+  fi
+  if [ -n "${SHA_KO:-}" ]; then
     KOFLAG="PSELECT_KO=/data/local/tmp/kernelsu_gki209.ko"
     say "KO 已武装 sha256=${SHA_KO%${SHA_KO#????????????????}}"
   else
-    say "!! ALLOW_KO=1 但 /data/local/tmp/kernelsu_gki209.ko 不存在 — 本轮无 KO"
+    say "!! ALLOW_KO=1 但设备上没有可用 KO — 本轮无 KO"
   fi
 fi
 
@@ -237,7 +332,18 @@ cleangate(){
 }
 
 # ── 5. R 轮: 同 boot 重掷, 每轮固定间隔 ──────────────────────
-TASK=""; LNAME=""; R_VERDICT="NONE"; NOT_FIRED=0
+# 铁律#2: 开火前先留档(状态快照), 崩溃/弹退后还能复盘
+CHECKPOINT="/data/local/tmp/land_${RUN_TS}.pre"
+{
+  echo "# pre-fire checkpoint ${RUN_TS}"
+  echo "boot=$BOOT0 uptime=${UP0}s enforce=$ENF0"
+  echo "load=$LOAD0 mem=$MEM0"
+  echo "run_mode=$([ "$IN_SHELL" = "1" ] && echo shell||echo termux) deploy=$DEPLOY rmax=$RMAX spacing=$SPACING fresh_max=$FRESH_MAX max_attempts=$MAX_ATTEMPTS"
+  echo "preload_sha256=$SHA_SO ko=${KOFLAG:-none}"
+} > "$CHECKPOINT"
+say "开火前留档: $CHECKPOINT"
+
+TASK=""; LNAME=""; R_VERDICT="NONE"; NOT_FIRED=0; T_LAND=0
 rr=1
 while [ "$rr" -le "$RMAX" ]; do
   say "── R 掷 $rr/$RMAX ──"
@@ -257,6 +363,7 @@ while [ "$rr" -le "$RMAX" ]; do
     case "$G" in
       R_LANDED)
         TASK=$(task_of); LNAME="R$rr"; R_VERDICT="$G"
+        T_LAND=$(date +%s)
         say "R 落地: task=$TASK ($LNAME)"
         break ;;
       R_REBOOTED)
@@ -295,8 +402,27 @@ fi
 
 # ── 7. 单发 C (G3) ──────────────────────────────────────────
 C_VERDICT="C_NOT_FIRED"
+
+# 每 boot 的 C 尝试预算 (MTK slab 铁律: 每 boot 最多 MAX_ATTEMPTS 次)
+BUDGET="/data/local/tmp/land_budget_$(printf '%s' "$BOOT0" | cut -c1-8)"
+USED=$(tr -dc '0-9' < "$BUDGET" 2>/dev/null); USED=${USED:-0}
+if [ "$USED" -ge "$MAX_ATTEMPTS" ]; then
+  say "!! 本 boot 已用 $USED 次 C (上限 $MAX_ATTEMPTS) — 硬重启后再来"
+  exit 8
+fi
+
+# G2: R 落地到 C 之间必须等足间隔(既是串行化, 也让 R 轮父进程退场)
+if [ "$T_LAND" -gt 0 ]; then
+  EL=$(( $(date +%s) - T_LAND ))
+  if [ "$EL" -lt "$SPACING" ]; then
+    say "R→C 间隔不足 (${EL}s < ${SPACING}s) — 等待 $((SPACING - EL))s"
+    sleep $((SPACING - EL))
+  fi
+fi
+
 if hb_fresh && [ "$(bootid_now)" = "$BOOT0" ]; then
   say "── C 单发 (task=$TASK) ──"
+  printf '%s\n' "$((USED + 1))" > "$BUDGET" 2>/dev/null
   fire "C1" "$C_ENV" "$TASK"
   if fired_ok "C1"; then
     C_VERDICT="C_FIRED"
